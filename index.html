@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPP Control</title>
+<script src="supabase.min.js"></script>
+<script src="chart.min.js"></script>
+<script src="qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#0A0C0F;--s1:#111318;--s2:#181C22;--s3:#1F242D;--brd:#2A3040;
+  --am:#F0B429;--ve:#34D399;--ro:#F87171;--az:#60A5FA;--tm:#6B7A99;
+  --bl:#E8EDF5;--wh:#FFFFFF;--r:8px;
+  --f:'Segoe UI',system-ui,sans-serif;--mono:Consolas,'Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--bl);font-family:var(--f);font-size:14px;}
+
+/* LOGIN */
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:100;overflow-y:auto;padding:20px;}
+.screen.oculto{display:none;}
+.box{background:var(--s1);border:1px solid var(--brd);border-radius:14px;padding:36px;width:100%;max-width:400px;}
+.box-titulo{font-size:26px;font-weight:800;color:var(--wh);margin-bottom:4px;text-align:center;}
+.box-titulo span{color:var(--am);}
+.box-sub{font-size:13px;color:var(--tm);margin-bottom:24px;text-align:center;}
+.box-icon{font-size:44px;text-align:center;margin-bottom:12px;}
+.err-box{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;padding:10px 14px;color:var(--ro);font-size:13px;margin-bottom:14px;display:none;line-height:1.6;}
+
+/* APP */
+#app{display:none;height:100vh;width:100vw;overflow:hidden;}
+#app.visible{display:flex;}
+#sidebar{width:210px;background:var(--s1);border-right:1px solid var(--brd);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s;}
+#sidebar.mini{width:54px;}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#topbar{height:54px;background:var(--s1);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 18px;gap:10px;flex-shrink:0;}
+#contenido{flex:1;overflow-y:auto;padding:22px;}
+
+/* SIDEBAR */
+.sb-logo{padding:16px 14px 12px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:9px;overflow:hidden;}
+.sb-logo-ic{width:30px;height:30px;background:var(--am);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.sb-logo-txt{font-size:15px;font-weight:800;color:var(--wh);white-space:nowrap;}
+.sb-logo-txt span{color:var(--am);}
+.sb-nav{flex:1;padding:8px 6px;overflow-y:auto;}
+.sbi{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:var(--r);cursor:pointer;color:var(--tm);font-size:13px;font-weight:500;margin-bottom:2px;white-space:nowrap;overflow:hidden;transition:all .15s;}
+.sbi:hover{background:var(--s3);color:var(--bl);}
+.sbi.activo{background:rgba(240,180,41,.12);color:var(--am);}
+.sbi .ic{font-size:15px;flex-shrink:0;width:20px;text-align:center;}
+.sbi .lb{overflow:hidden;text-overflow:ellipsis;}
+.sb-sep{height:1px;background:var(--brd);margin:6px 0;}
+.sb-sec{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--tm);padding:5px 11px 3px;overflow:hidden;}
+.sb-bottom{padding:10px 6px;border-top:1px solid var(--brd);}
+.sb-user{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--r);cursor:pointer;}
+.sb-user:hover{background:var(--s3);}
+.sb-av{width:26px;height:26px;border-radius:50%;background:var(--am);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--bg);flex-shrink:0;}
+.sb-un{font-size:12px;font-weight:600;color:var(--bl);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-ur{font-size:10px;color:var(--tm);}
+
+/* TOPBAR */
+.tb-tog{background:none;border:none;color:var(--tm);cursor:pointer;font-size:17px;padding:4px 7px;border-radius:5px;}
+.tb-tog:hover{background:var(--s3);color:var(--bl);}
+.tb-tit{font-size:17px;font-weight:700;color:var(--wh);}
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.tb-clk{font-family:var(--mono);font-size:13px;color:var(--tm);}
+.tb-pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;border:1px solid rgba(52,211,153,.4);color:var(--ve);background:rgba(52,211,153,.08);}
+.tb-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+/* VISTAS */
+.vista{display:none;}
+.vista.activo{display:block;animation:fi .2s ease;}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.ptit{font-size:22px;font-weight:800;color:var(--wh);margin-bottom:3px;}
+.psub{font-size:13px;color:var(--tm);margin-bottom:18px;}
+
+/* CARDS */
+.card{background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:18px;}
+.card+.card{margin-top:14px;}
+.ctit{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--tm);margin-bottom:12px;}
+
+/* STATS */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;}
+.sc{background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--am);}
+.sc.ve::before{background:var(--ve);}
+.sc.ro::before{background:var(--ro);}
+.sc.az::before{background:var(--az);}
+.sv{font-size:36px;font-weight:800;color:var(--wh);line-height:1;margin-bottom:3px;}
+.sl{font-size:11px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;}
+
+/* STOCK CARDS */
+.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:8px;}
+.stock-card{background:var(--s3);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:12px;border:1px solid var(--brd);}
+.stock-card.critico{border-left:3px solid var(--ro);background:rgba(248,113,113,.06);}
+.stock-card.bajo{border-left:3px solid var(--am);background:rgba(240,180,41,.06);}
+.stock-card.ok{border-left:3px solid var(--ve);background:rgba(52,211,153,.04);}
+.stock-ic{font-size:20px;flex-shrink:0;}
+.stock-nom{font-size:13px;font-weight:600;color:var(--bl);margin-bottom:2px;}
+.stock-det{font-size:11px;color:var(--tm);}
+.stock-bar-wrap{height:4px;background:var(--brd);border-radius:2px;margin-top:5px;}
+.stock-bar{height:4px;border-radius:2px;}
+
+/* FORMS */
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg.full{grid-column:1/-1;}
+label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--tm);}
+input,select,textarea{background:var(--s3);border:1px solid var(--brd);border-radius:6px;color:var(--bl);font-family:var(--f);font-size:14px;padding:8px 11px;width:100%;transition:border-color .2s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--am);}
+input::placeholder,textarea::placeholder{color:#3A4255;}
+select option{background:var(--s2);}
+textarea{resize:vertical;min-height:70px;}
+
+/* BTNS */
+.btn{border:none;border-radius:6px;cursor:pointer;font-family:var(--f);font-size:13px;font-weight:600;padding:9px 18px;transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.pri{background:var(--am);color:var(--bg);}
+.pri:hover:not(:disabled){filter:brightness(1.1);}
+.sec{background:var(--s3);border:1px solid var(--brd);color:var(--bl);}
+.sec:hover:not(:disabled){border-color:var(--am);color:var(--am);}
+.dan{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--ro);}
+.dan:hover{background:rgba(248,113,113,.2);}
+.suc{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);color:var(--ve);}
+.ico-btn{background:var(--s3);border:1px solid var(--brd);border-radius:6px;color:var(--tm);cursor:pointer;font-size:16px;padding:7px 10px;transition:all .15s;display:inline-flex;align-items:center;}
+.ico-btn:hover{border-color:var(--am);color:var(--am);}
+.sm{font-size:11px;padding:5px 10px;}
+.brow{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px;}
+
+/* TABLA */
+.twrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--brd);}
+table{width:100%;border-collapse:collapse;}
+thead tr{background:var(--s3);}
+th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--tm);padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--brd);}
+td{padding:9px 12px;border-bottom:1px solid var(--brd);font-size:13px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,.02);}
+.badge{display:inline-flex;align-items:center;border-radius:4px;font-size:10px;font-weight:600;padding:2px 6px;text-transform:uppercase;}
+.bv{background:rgba(52,211,153,.12);color:var(--ve);border:1px solid rgba(52,211,153,.25);}
+.by{background:rgba(240,180,41,.12);color:var(--am);border:1px solid rgba(240,180,41,.25);}
+.br{background:rgba(248,113,113,.12);color:var(--ro);border:1px solid rgba(248,113,113,.25);}
+.ba{background:rgba(96,165,250,.12);color:var(--az);border:1px solid rgba(96,165,250,.25);}
+.bg{background:rgba(107,122,153,.12);color:var(--tm);border:1px solid rgba(107,122,153,.25);}
+.del-row td{opacity:.5;text-decoration:line-through;}
+
+/* MODAL */
+.mov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.mov.abierto{display:flex;}
+.modal{background:var(--s2);border:1px solid var(--brd);border-top:3px solid var(--am);border-radius:10px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;animation:su .2s ease;}
+.modal.lg{max-width:860px;}
+.modal.xl{max-width:1100px;}
+@keyframes su{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.mtit{font-size:18px;font-weight:700;color:var(--wh);margin-bottom:16px;padding-right:28px;}
+.mclose{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--tm);font-size:19px;cursor:pointer;border-radius:5px;padding:2px 6px;}
+.mclose:hover{background:var(--s3);color:var(--ro);}
+
+/* FIRMA */
+.fw{border:2px dashed var(--brd);border-radius:var(--r);background:#fff;position:relative;height:155px;overflow:hidden;cursor:crosshair;}
+.fw:hover{border-color:var(--am);}
+.fw canvas{display:block;width:100%;height:100%;}
+.fph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:13px;pointer-events:none;}
+.fph.h{display:none;}
+
+/* PIN */
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:195px;margin:0 auto;}
+.pk{background:var(--s3);border:1px solid var(--brd);border-radius:var(--r);color:var(--bl);font-size:20px;font-weight:700;padding:13px;text-align:center;cursor:pointer;user-select:none;transition:all .12s;}
+.pk:hover{border-color:var(--am);color:var(--am);}
+.pk:active{transform:scale(.92);}
+.pk.d{color:var(--ro);}
+.pdis{text-align:center;font-family:var(--mono);font-size:28px;letter-spacing:9px;color:var(--am);height:42px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+
+/* CHIPS */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
+.chip{background:var(--s3);border:1.5px solid var(--brd);border-radius:6px;color:var(--tm);font-size:12px;font-weight:600;padding:6px 10px;display:flex;align-items:center;gap:5px;transition:all .12s;}
+.chip.sel{background:rgba(240,180,41,.1);border-color:var(--am);color:var(--am);}
+.chip .qty{background:var(--am);color:var(--bg);border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;}
+.cib{background:none;border:none;cursor:pointer;font-size:15px;padding:0;line-height:1;color:currentColor;}
+.recientes{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;}
+.rec-chip{background:var(--s3);border:1px solid var(--brd);border-radius:20px;color:var(--tm);font-size:11px;padding:4px 10px;cursor:pointer;transition:all .12s;}
+.rec-chip:hover{border-color:var(--am);color:var(--am);}
+
+/* TABS */
+.tabs{display:flex;gap:2px;background:var(--s3);border-radius:7px;padding:3px;margin-bottom:14px;border:1px solid var(--brd);}
+.tab{flex:1;background:none;border:none;border-radius:5px;color:var(--tm);cursor:pointer;font-size:12px;font-weight:600;padding:7px;text-transform:uppercase;transition:all .15s;}
+.tab.on{background:var(--s1);color:var(--am);}
+.tabp{display:none;}
+.tabp.on{display:block;}
+
+/* REPORTE TABS */
+.rtabs{display:flex;gap:0;margin-bottom:0;border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;}
+.rtab{background:var(--s3);border:none;border-right:1px solid var(--brd);color:var(--tm);cursor:pointer;font-size:13px;font-weight:600;padding:10px 18px;transition:all .15s;flex:1;text-align:center;}
+.rtab:last-child{border-right:none;}
+.rtab.on{background:var(--am);color:var(--bg);}
+.rtab:hover:not(.on){background:var(--s2);color:var(--bl);}
+.rpane{display:none;}
+.rpane.on{display:block;}
+
+/* REPORTE PREVIEW */
+.rep-preview{background:#fff;color:#000;border-radius:var(--r);padding:20px;margin-top:14px;overflow-x:auto;}
+.rep-toolbar{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--s3);border:1px solid var(--brd);border-radius:var(--r);margin-top:10px;}
+.rep-toolbar span{font-size:13px;color:var(--tm);flex:1;}
+
+/* FILTROS */
+.fbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;margin-bottom:14px;}
+.fbar label{margin:0;}
+.fbar input,.fbar select{width:auto;min-width:110px;}
+
+/* MISC */
+.alerta{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:var(--r);padding:9px 13px;color:var(--ro);font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.alertaw{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:var(--r);padding:9px 13px;color:var(--am);font-size:13px;display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.vacio{text-align:center;padding:28px;color:var(--tm);font-size:13px;}
+.uzone{border:2px dashed var(--brd);border-radius:var(--r);padding:18px;text-align:center;color:var(--tm);cursor:pointer;transition:all .2s;font-size:13px;}
+.uzone:hover{border-color:var(--am);color:var(--am);}
+.chart-wrap{position:relative;height:210px;}
+.chart-wrap.tall{height:280px;}
+.sec-title{font-size:15px;font-weight:700;color:var(--wh);margin:16px 0 10px;display:flex;align-items:center;gap:8px;}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--brd);}
+.ht-stat{background:var(--s3);border-radius:var(--r);padding:14px;text-align:center;}
+.ht-stat-val{font-size:28px;font-weight:800;color:var(--wh);}
+.ht-stat-lbl{font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
+.duracion-bar{height:5px;background:var(--brd);border-radius:3px;margin-top:4px;overflow:hidden;}
+.duracion-fill{height:100%;border-radius:3px;}
+.log-item{background:var(--s3);border-radius:6px;padding:10px 14px;margin-bottom:8px;border-left:3px solid var(--ro);font-size:13px;}
+.log-meta{font-size:11px;color:var(--tm);margin-bottom:3px;}
+
+/* TOAST */
+#toasts{position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none;}
+.toast{background:var(--s2);border:1px solid var(--brd);border-radius:var(--r);padding:11px 15px;font-size:13px;min-width:210px;animation:ti .3s ease;display:flex;align-items:center;gap:8px;pointer-events:all;box-shadow:0 6px 20px rgba(0,0,0,.4);}
+.toast.ok{border-left:3px solid var(--ve);}
+.toast.err{border-left:3px solid var(--ro);}
+.toast.warn{border-left:3px solid var(--am);}
+@keyframes ti{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--brd);border-radius:10px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN DIRECTO -->
+<div id="scLogin" class="screen">
+  <div class="box">
+    <div class="box-icon">⛑</div>
+    <div class="box-titulo">EPP<span>Control</span></div>
+    <div class="box-sub">Sistema de gestión de equipos de protección personal</div>
+    <div id="loginErr" class="err-box"></div>
+    <div class="fgrid" style="margin-bottom:10px;">
+      <div class="fg full"><label>Correo</label><input type="email" id="loginEmail" placeholder="usuario@empresa.cl" onkeydown="if(event.key==='Enter')login()"></div>
+      <div class="fg full"><label>Contraseña</label><input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"></div>
+    </div>
+    <button class="btn pri" id="btnLogin" style="width:100%;justify-content:center;" onclick="login()">Iniciar sesión</button>
+    <div style="margin-top:14px;text-align:center;">
+      <button onclick="toggleCfg()" style="background:none;border:none;color:var(--tm);font-size:11px;cursor:pointer;text-decoration:underline;">⚙ Configurar conexión Supabase</button>
+    </div>
+    <!-- CONFIG OCULTA -->
+    <div id="cfgPanel" style="display:none;margin-top:14px;border-top:1px solid var(--brd);padding-top:14px;">
+      <div class="fgrid" style="margin-bottom:10px;">
+        <div class="fg full"><label>Project URL</label><input type="text" id="cfgUrl" placeholder="https://xxxx.supabase.co"></div>
+        <div class="fg full"><label>Anon Public Key</label><input type="password" id="cfgKey" placeholder="eyJhbGci..."></div>
+      </div>
+      <div id="setupErr" style="color:var(--ro);font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn pri" style="flex:1;justify-content:center;" onclick="guardarConfig()">💾 Guardar</button>
+        <button class="btn dan sm" onclick="borrarConfig()">Borrar</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;text-align:center;">
+      <button onclick="diag()" style="background:none;border:none;color:var(--tm);font-size:10px;cursor:pointer;">🔍 Diagnóstico</button>
+    </div>
+    <div id="diagOut" style="margin-top:8px;font-size:11px;background:var(--s3);border-radius:6px;padding:10px;display:none;line-height:1.9;"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-ic">⛑</div>
+      <div class="sb-logo-txt">EPP<span>Control</span></div>
+    </div>
+    <div class="sb-nav">
+      <div class="sbi activo" onclick="ir('dashboard',this)"><span class="ic">📊</span><span class="lb">Dashboard</span></div>
+      <div class="sb-sep"></div>
+      <div class="sb-sec">Operaciones</div>
+      <div class="sbi" id="nav-entrega" onclick="ir('entrega',this)"><span class="ic">▶</span><span class="lb">Registrar Entrega</span></div>
+      <div class="sb-sep"></div>
+      <div class="sb-sec">Datos</div>
+      <div class="sbi" onclick="ir('inventario',this)"><span class="ic">📦</span><span class="lb">Inventario EPP</span></div>
+      <div class="sbi" onclick="ir('trabajadores',this)"><span class="ic">👷</span><span class="lb">Trabajadores</span></div>
+      <div class="sbi" onclick="ir('historial',this)"><span class="ic">📋</span><span class="lb">Historial</span></div>
+      <div class="sbi" onclick="ir('formularios',this)"><span class="ic">📎</span><span class="lb">Formularios</span></div>
+      <div class="sb-sep"></div>
+      <div class="sb-sec">Análisis</div>
+      <div class="sbi" onclick="ir('reportes',this)"><span class="ic">📈</span><span class="lb">Reportes</span></div>
+      <div class="sbi" id="nav-admin" style="display:none;" onclick="ir('admin',this)"><span class="ic">⚙</span><span class="lb">Administración</span></div>
+      <div class="sbi" id="nav-log" style="display:none;" onclick="ir('log',this)"><span class="ic">🗑</span><span class="lb">Log de cambios</span></div>
+    </div>
+    <div class="sb-bottom">
+      <div class="sb-user" onclick="logout()">
+        <div class="sb-av" id="uAv">?</div>
+        <div><div class="sb-un" id="uNom">—</div><div class="sb-ur" id="uRol">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="topbar">
+      <button class="tb-tog" onclick="toggleSB()">☰</button>
+      <div class="tb-tit" id="tbtit">Dashboard</div>
+      <div class="tb-r">
+        <div class="tb-pill"><div class="tb-dot"></div>Supabase</div>
+        <div class="tb-clk" id="clk">--:--</div>
+      </div>
+    </div>
+    <div id="contenido">
+
+      <!-- DASHBOARD -->
+      <div class="vista activo" id="v-dashboard">
+        <div class="ptit">Dashboard</div>
+        <div class="psub">Resumen del sistema EPP</div>
+        <div class="fbar">
+          <label>Período:</label>
+          <select id="dPer" onchange="loadDash()"><option value="7">7 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="365">1 año</option></select>
+          <label>Trabajador:</label>
+          <select id="dTr" onchange="loadDash()"><option value="">Todos</option></select>
+          <label>EPP:</label>
+          <select id="dEpp" onchange="loadDash()"><option value="">Todos</option></select>
+          <button class="btn sec sm" onclick="loadDash()">🔄</button>
+        </div>
+        <div class="sgrid" id="dStats"></div>
+        <div id="dVistGeneral">
+          <div class="g2" style="margin-bottom:14px;">
+            <div class="card"><div class="ctit">Entregas por período</div><div class="chart-wrap"><canvas id="cTimeline"></canvas></div></div>
+            <div class="card"><div class="ctit">EPP más entregados</div><div class="chart-wrap"><canvas id="cEpp"></canvas></div></div>
+          </div>
+          <div class="g2" style="margin-bottom:14px;">
+            <div class="card"><div class="ctit">Stock actual vs mínimos</div><div class="chart-wrap"><canvas id="cStock"></canvas></div></div>
+            <div class="card"><div class="ctit">Trabajadores con más entregas</div><div class="chart-wrap"><canvas id="cTr"></canvas></div></div>
+          </div>
+        </div>
+        <div id="dVistaTr" style="display:none;">
+          <div class="g2" style="margin-bottom:14px;">
+            <div class="card"><div class="ctit">EPP recibidos</div><div class="chart-wrap"><canvas id="cTrEpp"></canvas></div></div>
+            <div class="card"><div class="ctit">Frecuencia de entregas</div><div class="chart-wrap tall"><canvas id="cTrCal"></canvas></div></div>
+          </div>
+          <div class="card" style="margin-bottom:14px;"><div class="ctit">Detalle</div><div id="dDetTrCont"></div></div>
+        </div>
+        <div class="card"><div class="ctit">Últimas entregas</div>
+          <div class="twrap"><table><thead><tr><th>Fecha</th><th>Trabajador</th><th>EPP</th><th>Cant.</th><th>Val.</th><th>Doc.</th></tr></thead><tbody id="dUlt"></tbody></table></div>
+        </div>
+        <div id="dAlertasWrap" style="margin-top:20px;display:none;">
+          <div class="sec-title">⚠ Alertas de Stock</div>
+          <div id="dAlertas" class="stock-grid"></div>
+        </div>
+      </div>
+
+      <!-- ENTREGA -->
+      <div class="vista" id="v-entrega">
+        <div class="ptit">Registrar Entrega</div>
+        <div class="psub">Entrega de EPP con validación del trabajador</div>
+        <div class="g2">
+          <div class="card">
+            <div class="ctit" style="display:flex;align-items:center;justify-content:space-between;">
+              <span>① Trabajador</span>
+              <button class="ico-btn" onclick="abrirModalTr()" title="Agregar nuevo">➕</button>
+            </div>
+            <input type="text" id="bTr" placeholder="Buscar por nombre o RUT..." oninput="buscarTr()" style="margin-bottom:8px;">
+            <div id="resTr" style="max-height:160px;overflow-y:auto;"></div>
+            <div id="trRecientesWrap">
+              <div style="font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;margin:8px 0 5px;">Recientes</div>
+              <div id="trRecientes" class="recientes"></div>
+            </div>
+            <div id="trSelBox" style="display:none;margin-top:10px;">
+              <div style="background:rgba(240,180,41,.08);border:1.5px solid rgba(240,180,41,.3);border-radius:var(--r);padding:12px;">
+                <div style="font-size:16px;font-weight:800;color:var(--wh);" id="trSN"></div>
+                <div style="font-size:12px;color:var(--tm);" id="trSR"></div>
+                <div style="font-size:12px;color:var(--tm);" id="trSC"></div>
+                <div style="font-size:11px;color:var(--tm);margin-top:5px;" id="trSUE"></div>
+                <button onclick="limpiarTrSel()" class="btn sec sm" style="margin-top:8px;">✕ Cambiar</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="ctit" style="display:flex;align-items:center;justify-content:space-between;">
+              <span>② EPP</span>
+              <button class="ico-btn" onclick="abrirModalEPP()" title="Agregar nuevo">➕</button>
+            </div>
+            <input type="text" id="bEpp" placeholder="Buscar EPP..." oninput="filtrarEPP()" style="margin-bottom:8px;">
+            <div id="eppFrecuentesWrap" style="margin-bottom:8px;">
+              <div style="font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Frecuentes</div>
+              <div id="eppFrecuentes" class="recientes"></div>
+            </div>
+            <div id="eChips" class="chips"></div>
+            <div id="eRes" style="margin-top:8px;font-size:12px;color:var(--tm);">Ningún EPP seleccionado</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ctit">③ Validación</div>
+          <div class="tabs">
+            <button class="tab on" onclick="setTab('firma',this)">✍ Firma Digital</button>
+            <button class="tab" onclick="setTab('pin',this)">🔢 PIN Personal</button>
+          </div>
+          <div class="tabp on" id="tp-firma">
+            <label style="display:block;margin-bottom:5px;">Firme con dedo o mouse en el recuadro</label>
+            <div class="fw"><canvas id="sigCv"></canvas><div class="fph" id="sigPh">✍ Firme aquí</div></div>
+            <div class="brow"><button class="btn sec sm" onclick="clearSig()">🗑 Borrar</button></div>
+          </div>
+          <div class="tabp" id="tp-pin">
+            <p style="font-size:13px;color:var(--tm);margin-bottom:12px;">El trabajador ingresa su PIN de 4 dígitos</p>
+            <div class="pdis" id="pdis">_ _ _ _</div>
+            <div class="pgrid">
+              <button class="pk" onclick="pt('1')">1</button><button class="pk" onclick="pt('2')">2</button><button class="pk" onclick="pt('3')">3</button>
+              <button class="pk" onclick="pt('4')">4</button><button class="pk" onclick="pt('5')">5</button><button class="pk" onclick="pt('6')">6</button>
+              <button class="pk" onclick="pt('7')">7</button><button class="pk" onclick="pt('8')">8</button><button class="pk" onclick="pt('9')">9</button>
+              <button class="pk d" onclick="pdel()">⌫</button><button class="pk" onclick="pt('0')">0</button><button class="pk d" onclick="pclr()">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ctit">④ Opcionales</div>
+          <div class="fgrid">
+            <div class="fg full"><label>Observaciones</label><textarea id="eObs" placeholder="Notas sobre la entrega..."></textarea></div>
+            <div class="fg full">
+              <label>Formulario físico firmado</label>
+              <div class="uzone" id="uzone" onclick="document.getElementById('fileIn').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)"><div id="uzoneTxt">📎 Clic o arrastra PDF / imagen</div></div>
+              <input type="file" id="fileIn" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="setFile(event)">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn sec" onclick="resetEnt()">↩ Reiniciar</button>
+          <button class="btn pri" onclick="registrar()" id="btnReg">✔ REGISTRAR ENTREGA</button>
+        </div>
+      </div>
+
+      <!-- INVENTARIO -->
+      <div class="vista" id="v-inventario">
+        <div class="ptit">Inventario EPP</div>
+        <div class="psub">Gestión de stock</div>
+        <div class="sgrid" id="invStats"></div>
+        <div class="card">
+          <div class="ctit" id="invFormTit">➕ Agregar EPP</div>
+          <div class="fgrid">
+            <div class="fg"><label>Nombre</label><input type="text" id="iNom" placeholder="Casco de Seguridad"></div>
+            <div class="fg"><label>Categoría</label><select id="iCat"><option>Cabeza</option><option>Vista</option><option>Oídos</option><option>Respiración</option><option>Manos</option><option>Pies</option><option>Cuerpo</option><option>Altura</option><option>Otro</option></select></div>
+            <div class="fg"><label>Stock actual</label><input type="number" id="iSt" min="0" placeholder="0"></div>
+            <div class="fg"><label>Stock mínimo</label><input type="number" id="iMin" min="0" placeholder="5"></div>
+            <div class="fg"><label>Unidad</label><input type="text" id="iUn" placeholder="unidad / par / caja"></div>
+          </div>
+          <div class="brow">
+            <button class="btn pri" onclick="saveEPP()">💾 Guardar</button>
+            <button class="btn sec" onclick="cancelInv()">✕ Cancelar</button>
+            <label class="btn sec" style="cursor:pointer;">📥 Importar CSV/Excel<input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="importarEPPs(event)"></label>
+            <button class="btn sec sm" onclick="exportInvCSV()">⬇ Exportar CSV</button>
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:var(--tm);">Formato CSV: Nombre, Categoría, Stock, StockMínimo, Unidad</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <input type="text" id="filtInv" placeholder="Buscar EPP..." oninput="renderInv()" style="flex:1;min-width:120px;">
+            <select id="filtInvCat" onchange="renderInv()" style="width:auto;"><option value="">Todas las categorías</option><option>Cabeza</option><option>Vista</option><option>Oídos</option><option>Respiración</option><option>Manos</option><option>Pies</option><option>Cuerpo</option><option>Altura</option><option>Otro</option></select>
+          </div>
+          <div class="twrap"><table><thead><tr><th>EPP</th><th>Cat.</th><th>Stock</th><th>Mín.</th><th>Unidad</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="invTb"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- TRABAJADORES -->
+      <div class="vista" id="v-trabajadores">
+        <div class="ptit">Trabajadores</div>
+        <div class="psub">Gestión de nómina y personal</div>
+        <div class="card">
+          <div class="ctit" id="trFormTit">➕ Registrar Trabajador</div>
+          <div class="fgrid">
+            <div class="fg"><label>Nombres</label><input type="text" id="tNom" placeholder="Juan Andrés"></div>
+            <div class="fg"><label>Apellidos</label><input type="text" id="tApe" placeholder="González Pérez"></div>
+            <div class="fg"><label>RUT</label><input type="text" id="tRut" placeholder="12.345.678-9" oninput="fmtRut(this)"></div>
+            <div class="fg"><label>Cargo</label><input type="text" id="tCar" placeholder="Operador / Maestro"></div>
+            <div class="fg"><label>PIN (4 dígitos)</label><input type="password" id="tPin" placeholder="••••" maxlength="4"></div>
+          </div>
+          <div class="brow">
+            <button class="btn pri" onclick="saveTr()">💾 Registrar</button>
+            <button class="btn sec" onclick="cancelTr()">✕ Cancelar</button>
+            <label class="btn sec" style="cursor:pointer;">📥 Importar CSV<input type="file" accept=".csv" style="display:none" onchange="importTrCSV(event)"></label>
+            <button class="btn sec sm" onclick="exportTrCSV()">⬇ Exportar</button>
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:var(--tm);">Formato CSV: Nombre, Apellido, RUT, Cargo, PIN</div>
+        </div>
+        <div class="card">
+          <input type="text" id="filtTr" placeholder="Buscar por nombre, RUT o cargo..." oninput="renderTr()" style="margin-bottom:12px;">
+          <div class="twrap"><table>
+            <thead><tr><th>Nombre</th><th>RUT</th><th>Cargo</th><th>Última entrega</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="trTb"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- HISTORIAL -->
+      <div class="vista" id="v-historial">
+        <div class="ptit">Historial de Entregas</div>
+        <div class="psub">Registro completo</div>
+        <div class="fbar">
+          <label>Trabajador:</label><select id="hTr" onchange="renderHist()" style="width:auto;"><option value="">Todos</option></select>
+          <label>EPP:</label><select id="hEpp" onchange="renderHist()" style="width:auto;"><option value="">Todos</option></select>
+          <label>Desde:</label><input type="date" id="hDes" onchange="renderHist()" style="width:auto;">
+          <label>Hasta:</label><input type="date" id="hHas" onchange="renderHist()" style="width:auto;">
+          <button class="btn sec sm" onclick="clearHist()">✕</button>
+          <button class="btn pri sm" onclick="exportHistCSV()">⬇ CSV</button>
+          <button class="btn sec sm" onclick="printHistReport()">🖨 PDF</button>
+        </div>
+        <div class="card">
+          <div class="twrap"><table>
+            <thead><tr><th>Fecha</th><th>Trabajador</th><th>RUT</th><th>EPP</th><th>Cant.</th><th>Val.</th><th>Docs</th><th>Acciones</th></tr></thead>
+            <tbody id="histTb"></tbody>
+          </table></div>
+          <div style="margin-top:10px;font-size:12px;color:var(--tm);" id="histCnt"></div>
+        </div>
+      </div>
+
+      <!-- FORMULARIOS -->
+      <div class="vista" id="v-formularios">
+        <div class="ptit">Formularios</div>
+        <div class="psub">Firmas digitales y documentos físicos adjuntos</div>
+        <div class="fbar">
+          <input type="text" id="frmQ" placeholder="Buscar trabajador..." oninput="renderForms()" style="min-width:180px;">
+          <label>Desde:</label><input type="date" id="frmDes" onchange="renderForms()" style="width:auto;">
+          <label>Hasta:</label><input type="date" id="frmHas" onchange="renderForms()" style="width:auto;">
+        </div>
+        <div class="card">
+          <div class="twrap"><table>
+            <thead><tr><th>Fecha</th><th>Trabajador</th><th>RUT</th><th>EPP</th><th>Cant.</th><th>Firma</th><th>Doc. físico</th><th>Acciones</th></tr></thead>
+            <tbody id="frmTb"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- REPORTES -->
+      <div class="vista" id="v-reportes">
+        <div class="ptit">Reportes</div>
+        <div class="psub">Vista previa y exportación para fiscalización</div>
+        <div class="rtabs">
+          <button class="rtab on" onclick="setRTab('general',this)">📋 Por período</button>
+          <button class="rtab" onclick="setRTab('trabajador',this)">👷 Por trabajador</button>
+          <button class="rtab" onclick="setRTab('epp',this)">📦 Por EPP</button>
+          <button class="rtab" onclick="setRTab('inventario',this)">🗃 Inventario</button>
+        </div>
+
+        <!-- GENERAL -->
+        <div class="rpane on" id="rp-general">
+          <div class="card" style="margin-top:14px;">
+            <div class="fgrid">
+              <div class="fg"><label>Período</label><select id="rPer" onchange="if(this.value==='custom')document.getElementById('rFechas').style.display='flex';else document.getElementById('rFechas').style.display='none'"><option value="mes">Mes actual</option><option value="tri">Último trimestre</option><option value="ano">Año actual</option><option value="custom">Personalizado</option><option value="all">Todo</option></select></div>
+              <div class="fg" id="rFechas" style="display:none;flex-direction:row;gap:8px;align-items:flex-end;">
+                <div class="fg"><label>Desde</label><input type="date" id="rDes"></div>
+                <div class="fg"><label>Hasta</label><input type="date" id="rHas"></div>
+              </div>
+            </div>
+            <div class="brow"><button class="btn pri" onclick="verReporte('general')">🔍 Ver reporte</button></div>
+          </div>
+          <div id="prev-general"></div>
+        </div>
+
+        <!-- POR TRABAJADOR -->
+        <div class="rpane" id="rp-trabajador">
+          <div class="card" style="margin-top:14px;">
+            <div class="fgrid">
+              <div class="fg"><label>Trabajador</label><select id="rTrSel"><option value="">Selecciona...</option></select></div>
+              <div class="fg"><label>Período</label><select id="rTrPer"><option value="all">Todo el historial</option><option value="ano">Año actual</option><option value="mes">Mes actual</option></select></div>
+            </div>
+            <div class="brow"><button class="btn pri" onclick="verReporte('trabajador')">🔍 Ver reporte</button></div>
+          </div>
+          <div id="prev-trabajador"></div>
+        </div>
+
+        <!-- POR EPP -->
+        <div class="rpane" id="rp-epp">
+          <div class="card" style="margin-top:14px;">
+            <div class="fgrid">
+              <div class="fg"><label>EPP</label><select id="rEppSel"><option value="">Selecciona...</option></select></div>
+              <div class="fg"><label>Período</label><select id="rEppPer"><option value="all">Todo</option><option value="ano">Año actual</option><option value="mes">Mes actual</option></select></div>
+            </div>
+            <div class="brow"><button class="btn pri" onclick="verReporte('epp')">🔍 Ver reporte</button></div>
+          </div>
+          <div id="prev-epp"></div>
+        </div>
+
+        <!-- INVENTARIO -->
+        <div class="rpane" id="rp-inventario">
+          <div class="card" style="margin-top:14px;">
+            <div class="brow" style="margin-top:0;"><button class="btn pri" onclick="verReporte('inventario')">🔍 Ver inventario actual</button></div>
+          </div>
+          <div id="prev-inventario"></div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="vista" id="v-admin">
+        <div class="ptit">Administración</div>
+        <div class="psub">Gestión de usuarios del sistema</div>
+        <div class="card">
+          <div class="ctit">➕ Registrar usuario</div>
+          <p style="font-size:13px;color:var(--tm);margin-bottom:12px;">Crea el usuario en <strong>Supabase → Authentication → Users → Add user</strong>, luego regístralo aquí con su UUID.</p>
+          <div class="fgrid">
+            <div class="fg"><label>UUID (de Supabase Auth)</label><input type="text" id="uId" placeholder="xxxxxxxx-xxxx-..."></div>
+            <div class="fg"><label>Nombre completo</label><input type="text" id="uNom" placeholder="Juan González"></div>
+            <div class="fg"><label>Email</label><input type="email" id="uEmail" placeholder="juan@empresa.cl"></div>
+            <div class="fg"><label>Rol</label><select id="uRol"><option value="admin">Administrador (acceso total)</option><option value="supervisor">Supervisor (entregar + ver)</option><option value="auditor">Auditor (solo lectura)</option></select></div>
+          </div>
+          <div class="brow"><button class="btn pri" onclick="createUser()">➕ Registrar</button></div>
+        </div>
+        <div class="card">
+          <div class="ctit">👥 Usuarios activos</div>
+          <div class="twrap"><table><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="usersTb"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- LOG DE CAMBIOS -->
+      <div class="vista" id="v-log">
+        <div class="ptit">Log de Cambios</div>
+        <div class="psub">Registro de eliminaciones y modificaciones (solo admin)</div>
+        <div class="card">
+          <div class="twrap"><table>
+            <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Tipo</th><th>Detalle</th><th>Motivo</th></tr></thead>
+            <tbody id="logTb"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div class="mov" id="moDet"><div class="modal xl"><button class="mclose" onclick="closeM('moDet')">✕</button><div class="mtit" id="moDetTit"></div><div id="moDetCont"></div></div></div>
+<div class="mov" id="moImg"><div class="modal" style="max-width:680px;background:#111;"><button class="mclose" onclick="closeM('moImg')" style="color:#fff;">✕</button><img id="moImgSrc" style="width:100%;border-radius:var(--r);margin-top:20px;"></div></div>
+
+<!-- MODAL AGREGAR TRABAJADOR -->
+<div class="mov" id="moAddTr"><div class="modal">
+  <button class="mclose" onclick="closeM('moAddTr')">✕</button>
+  <div class="mtit">➕ Nuevo Trabajador</div>
+  <div class="fgrid">
+    <div class="fg"><label>Nombres</label><input type="text" id="atNom"></div>
+    <div class="fg"><label>Apellidos</label><input type="text" id="atApe"></div>
+    <div class="fg"><label>RUT</label><input type="text" id="atRut" oninput="fmtRut(this)"></div>
+    <div class="fg"><label>Cargo</label><input type="text" id="atCar"></div>
+    <div class="fg"><label>PIN (4 dígitos)</label><input type="password" id="atPin" maxlength="4"></div>
+  </div>
+  <div class="brow"><button class="btn pri" onclick="guardarTrRapido()">💾 Guardar y seleccionar</button></div>
+</div></div>
+
+<!-- MODAL AGREGAR EPP -->
+<div class="mov" id="moAddEPP"><div class="modal">
+  <button class="mclose" onclick="closeM('moAddEPP')">✕</button>
+  <div class="mtit">➕ Nuevo EPP</div>
+  <div class="fgrid">
+    <div class="fg full"><label>Nombre</label><input type="text" id="aeNom"></div>
+    <div class="fg"><label>Categoría</label><select id="aeCat"><option>Cabeza</option><option>Vista</option><option>Oídos</option><option>Respiración</option><option>Manos</option><option>Pies</option><option>Cuerpo</option><option>Altura</option><option>Otro</option></select></div>
+    <div class="fg"><label>Stock inicial</label><input type="number" id="aeSt" min="0" placeholder="0"></div>
+    <div class="fg"><label>Stock mínimo</label><input type="number" id="aeMin" min="0" placeholder="5"></div>
+    <div class="fg"><label>Unidad</label><input type="text" id="aeUn" placeholder="unidad / par"></div>
+  </div>
+  <div class="brow"><button class="btn pri" onclick="guardarEPPRapido()">💾 Guardar</button></div>
+</div></div>
+
+<!-- MODAL ELIMINAR CON MOTIVO -->
+<div class="mov" id="moEliminar"><div class="modal">
+  <button class="mclose" onclick="closeM('moEliminar')">✕</button>
+  <div class="mtit" id="moElimTit">Eliminar registro</div>
+  <div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--ro);">
+    ⚠ Esta acción quedará registrada en el log de cambios con tu usuario y fecha.
+  </div>
+  <div id="moElimInfo" style="margin-bottom:14px;font-size:13px;color:var(--tm);"></div>
+  <div class="fg">
+    <label>Motivo de eliminación (obligatorio)</label>
+    <textarea id="elimMotivo" placeholder="Ej: Error de registro, duplicado, datos incorrectos..." style="min-height:80px;"></textarea>
+  </div>
+  <div class="brow">
+    <button class="btn dan" id="btnConfirmElim" onclick="confirmarEliminar()">🗑 Confirmar eliminación</button>
+    <button class="btn sec" onclick="closeM('moEliminar')">Cancelar</button>
+  </div>
+</div></div>
+
+<!-- MODAL EDITAR ENTREGA -->
+<div class="mov" id="moEditEnt"><div class="modal lg">
+  <button class="mclose" onclick="closeM('moEditEnt')">✕</button>
+  <div class="mtit">✏ Editar cantidades de entrega</div>
+  <div id="editEntCont"></div>
+  <div class="fg" style="margin-top:14px;">
+    <label>Motivo del cambio (obligatorio)</label>
+    <textarea id="editEntMotivo" placeholder="Ej: Error en la cantidad registrada..." style="min-height:60px;"></textarea>
+  </div>
+  <div class="brow">
+    <button class="btn pri" onclick="guardarEditEntrega()">💾 Guardar cambios</button>
+    <button class="btn sec" onclick="closeM('moEditEnt')">Cancelar</button>
+  </div>
+</div></div>
+
+<div id="toasts"></div>
+
+<script>
+// ════════════════════════════════════════
+// ESTADO
+// ════════════════════════════════════════
+let SB=null,YO=null,PERFIL=null;
+let EPPS=[],TRABAJADORES=[],HISTDATA=[],FRMDATA=[];
+let EDITEPPID=null,EDITTRID=null;
+let CURTR=null,EPPSEL={},EPPSEL_SNAP={};
+let CURTAB='firma',PINVAL='',SIGDATA=null,ARCHIVO=null;
+let CV=null,CX=null,DRAW=false,CHARTS={};
+let TR_RECIENTES=[];
+let EPP_FRECUENTES=[];
+// Para eliminación
+let ELIM_PENDING={tipo:null,id:null,info:''};
+// Para editar entrega
+let EDIT_ENT_ID=null,EDIT_ENT_DETALLES=[];
+
+try{TR_RECIENTES=JSON.parse(localStorage.getItem('epp_tr_rec')||'[]');}catch{}
+
+// ════════════════════════════════════════
+// ARRANQUE
+// ════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',async()=>{
+  iniciarReloj();
+  const cfg=getCfg();
+  if(cfg){
+    SB=crearSB(cfg.url,cfg.key);
+    document.getElementById('cfgUrl').value=cfg.url;
+    document.getElementById('cfgKey').value=cfg.key;
+    try{
+      const{data:{session}}=await SB.auth.getSession();
+      if(session){
+        const p=await cargarPerfil(session.user.id);
+        if(p){YO=session.user;PERFIL=p;abrirApp();return;}
+      }
+    }catch(e){}
+  }
+  document.getElementById('scLogin').classList.remove('oculto');
+});
+
+function crearSB(url,key){return supabase.createClient(url,key,{auth:{storageKey:'epp-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});}
+function getCfg(){try{return JSON.parse(localStorage.getItem('epp_cfg'))||null;}catch{return null;}}
+function toggleCfg(){const el=document.getElementById('cfgPanel');el.style.display=el.style.display==='none'?'block':'none';}
+
+function guardarConfig(){
+  const url=document.getElementById('cfgUrl').value.trim();
+  const key=document.getElementById('cfgKey').value.trim();
+  const err=document.getElementById('setupErr');
+  if(!url||!key){err.textContent='Completa los dos campos';err.style.display='block';return;}
+  if(!url.includes('supabase.co')){err.textContent='URL inválida';err.style.display='block';return;}
+  if(!key.startsWith('eyJ')){err.textContent='Key inválida';err.style.display='block';return;}
+  localStorage.setItem('epp_cfg',JSON.stringify({url,key}));
+  SB=crearSB(url,key);
+  err.style.display='none';
+  document.getElementById('cfgPanel').style.display='none';
+  toast('Configuración guardada. Inicia sesión.','ok');
+}
+function borrarConfig(){if(!confirm('¿Borrar configuración?'))return;localStorage.removeItem('epp_cfg');location.reload();}
+
+async function login(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  const btn=document.getElementById('btnLogin');
+  const err=document.getElementById('loginErr');
+  err.style.display='none';
+  if(!email||!pass){err.textContent='Completa email y contraseña';err.style.display='block';return;}
+  const cfg=getCfg();
+  if(!cfg){err.innerHTML='Configura la conexión a Supabase primero.<br><small>Haz clic en "⚙ Configurar conexión Supabase" abajo.</small>';err.style.display='block';return;}
+  if(!SB)SB=crearSB(cfg.url,cfg.key);
+  btn.textContent='Ingresando...';btn.disabled=true;
+  try{
+    const{data,error}=await SB.auth.signInWithPassword({email,password:pass});
+    if(error){err.textContent=error.message;err.style.display='block';btn.textContent='Iniciar sesión';btn.disabled=false;return;}
+    const p=await cargarPerfil(data.user.id);
+    if(!p){
+      err.innerHTML='Usuario sin perfil asignado.<br><small>Ejecuta en Supabase SQL Editor:<br><code style="background:#333;padding:2px 5px;border-radius:3px;">INSERT INTO perfiles(id,nombre,email,rol,activo)VALUES(\''+data.user.id+'\',\'Admin\',\''+data.user.email+'\',\'admin\',true);</code></small>';
+      err.style.display='block';await SB.auth.signOut();btn.textContent='Iniciar sesión';btn.disabled=false;return;
+    }
+    YO=data.user;PERFIL=p;abrirApp();
+  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';}
+  btn.textContent='Iniciar sesión';btn.disabled=false;
+}
+
+async function cargarPerfil(uid){
+  try{const{data,error}=await SB.from('perfiles').select('*').eq('id',uid).single();return(!error&&data)?data:null;}catch{return null;}
+}
+
+function abrirApp(){
+  document.getElementById('scLogin').classList.add('oculto');
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('uNom').textContent=PERFIL.nombre;
+  document.getElementById('uRol').textContent=PERFIL.rol;
+  document.getElementById('uAv').textContent=PERFIL.nombre.charAt(0).toUpperCase();
+  if(PERFIL.rol==='admin'){document.getElementById('nav-admin').style.display='flex';document.getElementById('nav-log').style.display='flex';}
+  if(PERFIL.rol==='auditor')document.getElementById('nav-entrega').style.display='none';
+  setTimeout(()=>initFirma(),200);
+  cargarFiltros();loadDash();
+}
+
+async function logout(){if(!confirm('¿Cerrar sesión?'))return;await SB.auth.signOut();location.reload();}
+
+async function diag(){
+  const el=document.getElementById('diagOut');el.style.display='block';el.innerHTML='⏳...';
+  const log=[];
+  try{localStorage.setItem('t','1');log.push(localStorage.getItem('t')==='1'?'✅ localStorage OK':'❌ falla');localStorage.removeItem('t');}catch(e){log.push('❌ localStorage: '+e.message);}
+  const cfg=getCfg();log.push(cfg?'✅ Config: '+cfg.url:'❌ Sin config');
+  log.push(SB?'✅ Cliente creado':'❌ null');
+  if(SB){
+    try{const{data:{session}}=await SB.auth.getSession();log.push(session?'✅ Sesión: '+session.user.email:'⚠️ Sin sesión');}catch(e){log.push('❌ '+e.message);}
+    try{const{data,error}=await SB.from('perfiles').select('id,nombre,rol').limit(3);log.push(error?'❌ perfiles: '+error.message:'✅ perfiles: '+JSON.stringify(data));}catch(e){log.push('❌ '+e.message);}
+  }
+  el.innerHTML=log.map(l=>`<div style="color:${l.startsWith('✅')?'#34D399':l.startsWith('❌')?'#F87171':'#F0B429'}">${l}</div>`).join('');
+}
+
+// ════════════════════════════════════════
+// FIRMA
+// ════════════════════════════════════════
+function initFirma(){
+  CV=document.getElementById('sigCv');if(!CV)return;
+  CX=CV.getContext('2d');fitCv();
+  window.addEventListener('resize',fitCv);
+  const add=(t,fn,opt)=>CV.addEventListener(t,fn,opt||false);
+  add('mousedown',e=>{DRAW=true;CX.beginPath();mvP(e);});
+  add('mousemove',e=>{if(DRAW)drP(e);});
+  add('mouseup',eS);add('mouseleave',eS);
+  add('touchstart',e=>{e.preventDefault();DRAW=true;CX.beginPath();mvP(e.touches[0]);},{passive:false});
+  add('touchmove',e=>{e.preventDefault();if(DRAW)drP(e.touches[0]);},{passive:false});
+  add('touchend',eS);
+}
+function fitCv(){if(!CV)return;const r=CV.parentElement.getBoundingClientRect();CV.width=r.width;CV.height=r.height;CX.strokeStyle='#111';CX.lineWidth=2.5;CX.lineCap='round';CX.lineJoin='round';}
+function mvP(e){const r=CV.getBoundingClientRect();CX.moveTo(e.clientX-r.left,e.clientY-r.top);}
+function drP(e){document.getElementById('sigPh').classList.add('h');const r=CV.getBoundingClientRect();CX.lineTo(e.clientX-r.left,e.clientY-r.top);CX.stroke();}
+function eS(){if(DRAW){DRAW=false;SIGDATA=CV.toDataURL();}}
+function clearSig(){if(!CV)return;CX.clearRect(0,0,CV.width,CV.height);document.getElementById('sigPh').classList.remove('h');SIGDATA=null;}
+
+// PIN
+function pt(d){if(PINVAL.length>=4)return;PINVAL+=d;updPin();}
+function pdel(){PINVAL=PINVAL.slice(0,-1);updPin();}
+function pclr(){PINVAL='';updPin();}
+function updPin(){const el=document.getElementById('pdis');if(el)el.textContent='● '.repeat(PINVAL.length)+'_ '.repeat(4-PINVAL.length);}
+
+// ════════════════════════════════════════
+// NAVEGACIÓN
+// ════════════════════════════════════════
+const TITS={dashboard:'Dashboard',entrega:'Registrar Entrega',inventario:'Inventario EPP',trabajadores:'Trabajadores',historial:'Historial',formularios:'Formularios',reportes:'Reportes',admin:'Administración',log:'Log de Cambios'};
+function ir(id,el){
+  document.querySelectorAll('.vista').forEach(v=>v.classList.remove('activo'));
+  document.querySelectorAll('.sbi').forEach(b=>b.classList.remove('activo'));
+  document.getElementById('v-'+id).classList.add('activo');
+  if(el)el.classList.add('activo');
+  document.getElementById('tbtit').textContent=TITS[id]||id;
+  if(id==='dashboard')loadDash();
+  if(id==='inventario')cargarEPPs();
+  if(id==='trabajadores')cargarTrs();
+  if(id==='historial')renderHist();
+  if(id==='formularios')renderForms();
+  if(id==='reportes')renderReportes();
+  if(id==='admin')cargarUsuarios();
+  if(id==='log')cargarLog();
+  if(id==='entrega'){cargarEPPs();setTimeout(()=>{if(!CV)initFirma();else fitCv();},150);}
+}
+function toggleSB(){document.getElementById('sidebar').classList.toggle('mini');}
+function setTab(id,btn){
+  document.querySelectorAll('.tabp').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tp-'+id).classList.add('on');if(btn)btn.classList.add('on');
+  CURTAB=id;if(id==='firma')setTimeout(()=>fitCv(),50);
+}
+function setRTab(id,btn){
+  document.querySelectorAll('.rpane').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.rtab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('rp-'+id).classList.add('on');if(btn)btn.classList.add('on');
+}
+
+// ════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════
+function fmtF(ts){if(!ts)return '—';const d=new Date(ts);return d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});}
+function fmtRut(el){let v=el.value.replace(/[^0-9kK]/g,'');if(v.length>1)v=v.slice(0,-1)+'-'+v.slice(-1);if(v.length>5)v=v.slice(0,-5)+'.'+v.slice(-5);if(v.length>9)v=v.slice(0,-9)+'.'+v.slice(-9);el.value=v.toUpperCase();}
+function closeM(id){document.getElementById(id).classList.remove('abierto');}
+function toast(m,t='ok'){const c=document.getElementById('toasts');const el=document.createElement('div');el.className=`toast ${t}`;el.innerHTML=`<span>${{ok:'✔',err:'✕',warn:'⚠'}[t]||'•'}</span> ${m}`;c.appendChild(el);setTimeout(()=>el.remove(),4000);}
+function dlCSV(c,n){const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(c);a.download=n;a.click();}
+function canEdit(){return PERFIL&&['admin','supervisor'].includes(PERFIL.rol);}
+function isAdmin(){return PERFIL&&PERFIL.rol==='admin';}
+function iniciarReloj(){setInterval(()=>{const el=document.getElementById('clk');if(el)el.textContent=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});},1000);}
+function destroyChart(id){if(CHARTS[id]){CHARTS[id].destroy();delete CHARTS[id];}}
+function periodoDesde(per){const h=new Date();if(per==='mes')return new Date(h.getFullYear(),h.getMonth(),1);if(per==='tri'){const d=new Date(h);d.setMonth(d.getMonth()-3);return d;}if(per==='ano')return new Date(h.getFullYear(),0,1);return new Date(0);}
+
+// ════════════════════════════════════════
+// FILTROS GLOBALES
+// ════════════════════════════════════════
+async function cargarFiltros(){
+  const[{data:trs},{data:epps}]=await Promise.all([
+    SB.from('trabajadores').select('id,nombre,apellido').eq('activo',true).order('apellido'),
+    SB.from('epps').select('id,nombre').order('nombre')
+  ]);
+  TRABAJADORES=trs||[];
+  ['dTr','hTr','rTrSel'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">Todos</option>'+(trs||[]).map(t=>`<option value="${t.id}">${t.nombre} ${t.apellido}</option>`).join('');});
+  ['dEpp','hEpp','rEppSel'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">Todos</option>'+(epps||[]).map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');});
+  await cargarEPPFrecuentes();
+  renderTrRecientes();
+}
+
+// ════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════
+async function loadDash(){
+  if(!SB)return;
+  const dias=parseInt(document.getElementById('dPer').value)||30;
+  const trId=document.getElementById('dTr').value;
+  const eppId=document.getElementById('dEpp').value;
+  const since=new Date();since.setDate(since.getDate()-dias);
+  let q=SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,trabajador_id,detalle_entregas(cantidad,epp_nombre,epp_id),trabajadores(nombre,apellido,rut,cargo)').gte('fecha',since.toISOString()).order('fecha',{ascending:false});
+  if(trId)q=q.eq('trabajador_id',trId);
+  const{data:ents}=await q;
+  let f=ents||[];
+  if(eppId)f=f.filter(e=>e.detalle_entregas.some(d=>d.epp_id===eppId));
+  const{data:ea}=await SB.from('epps').select('*');
+  const EA=ea||[];
+
+  if(trId){
+    const unds=f.reduce((a,e)=>a+e.detalle_entregas.reduce((b,d)=>b+d.cantidad,0),0);
+    const tipos=new Set(f.flatMap(e=>e.detalle_entregas.map(d=>d.epp_nombre))).size;
+    const trInfo=f[0]?.trabajadores;
+    document.getElementById('dStats').innerHTML=`<div class="sc am"><div class="sv">${f.length}</div><div class="sl">Entregas</div></div><div class="sc ve"><div class="sv">${unds}</div><div class="sl">Unidades</div></div><div class="sc az"><div class="sv">${tipos}</div><div class="sl">Tipos EPP</div></div><div class="sc"><div class="sv" style="font-size:14px;padding-top:6px;">${trInfo?.cargo||'—'}</div><div class="sl">Cargo</div></div>`;
+    document.getElementById('dAlertasWrap').style.display='none';
+    document.getElementById('dVistGeneral').style.display='none';
+    document.getElementById('dVistaTr').style.display='block';
+    renderVistaTr(f);
+  }else{
+    const tot=f.length,unds=f.reduce((a,e)=>a+e.detalle_entregas.reduce((b,d)=>b+d.cantidad,0),0),trks=new Set(f.map(e=>e.trabajador_id)).size,bajos=EA.filter(e=>e.stock<=e.stock_minimo).length;
+    document.getElementById('dStats').innerHTML=`<div class="sc am"><div class="sv">${tot}</div><div class="sl">Entregas</div></div><div class="sc ve"><div class="sv">${unds}</div><div class="sl">Unidades</div></div><div class="sc az"><div class="sv">${trks}</div><div class="sl">Trabajadores</div></div><div class="sc ro"><div class="sv">${bajos}</div><div class="sl">EPP bajo stock</div></div>`;
+    document.getElementById('dVistGeneral').style.display='block';
+    document.getElementById('dVistaTr').style.display='none';
+    const alertas=EA.filter(e=>e.stock<=e.stock_minimo);
+    document.getElementById('dAlertasWrap').style.display=alertas.length?'block':'none';
+    renderStockCards('dAlertas',alertas);
+    renderChartsGen(f,EA);
+  }
+  document.getElementById('dUlt').innerHTML=f.slice(0,10).map(e=>`<tr><td style="white-space:nowrap;">${fmtF(e.fecha)}</td><td><strong>${e.trabajadores?.nombre} ${e.trabajadores?.apellido||''}</strong></td><td>${e.detalle_entregas.map(d=>`${d.epp_nombre} ×${d.cantidad}`).join(', ')}</td><td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td><span class="badge ${e.tipo_validacion==='firma'?'bv':'ba'}">${e.tipo_validacion==='firma'?'Firma':'PIN'}</span></td><td>${e.formulario_url?`<button class="btn sec sm" onclick="verDoc('${e.formulario_url}')">📎</button>`:'—'}</td></tr>`).join('')||`<tr><td colspan="6" class="vacio">Sin entregas</td></tr>`;
+}
+
+function renderStockCards(cid,lista){
+  const el=document.getElementById(cid);if(!el)return;
+  if(!lista?.length){el.innerHTML='<p style="color:var(--ve);font-size:13px;">✔ Todos los EPP tienen stock suficiente</p>';return;}
+  el.innerHTML=lista.map(e=>{
+    const pct=e.stock_minimo>0?Math.min(100,Math.round(e.stock/e.stock_minimo*100)):0;
+    const tipo=e.stock<=0?'critico':'bajo';
+    const color=e.stock<=0?'var(--ro)':'var(--am)';
+    return `<div class="stock-card ${tipo}"><div class="stock-ic">${e.stock<=0?'🚫':'⚠'}</div>
+      <div style="flex:1;min-width:0;"><div class="stock-nom">${e.nombre}</div>
+      <div class="stock-det">${e.stock<=0?'AGOTADO':`${e.stock} ${e.unidad} · mín: ${e.stock_minimo}`}</div>
+      <div class="stock-bar-wrap"><div class="stock-bar" style="width:${pct}%;background:${color};"></div></div></div></div>`;
+  }).join('');
+}
+
+function renderChartsGen(f,EA){
+  const byD={};f.forEach(e=>{const d=new Date(e.fecha).toLocaleDateString('es-CL');byD[d]=(byD[d]||0)+1;});
+  destroyChart('tl');const ctlEl=document.getElementById('cTimeline');
+  if(ctlEl&&window.Chart)CHARTS.tl=new Chart(ctlEl,{type:'line',data:{labels:Object.keys(byD),datasets:[{data:Object.values(byD),borderColor:'#F0B429',backgroundColor:'rgba(240,180,41,.1)',tension:.3,fill:true,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'#2A3040'}},y:{ticks:{color:'#6B7A99',stepSize:1},grid:{color:'#2A3040'}}}}});
+
+  const bE={};f.forEach(e=>e.detalle_entregas.forEach(d=>{bE[d.epp_nombre]=(bE[d.epp_nombre]||0)+d.cantidad;}));
+  const eRk=Object.entries(bE).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('ep');const cepEl=document.getElementById('cEpp');
+  if(cepEl&&window.Chart)CHARTS.ep=new Chart(cepEl,{type:'bar',data:{labels:eRk.map(x=>x[0]),datasets:[{data:eRk.map(x=>x[1]),backgroundColor:'rgba(240,180,41,.6)',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99'},grid:{color:'#2A3040'}},y:{ticks:{color:'#E8EDF5',font:{size:11}},grid:{display:false}}}}});
+
+  const stk=EA.map(e=>({n:e.nombre.length>16?e.nombre.slice(0,14)+'…':e.nombre,s:e.stock,m:e.stock_minimo})).sort((a,b)=>a.s-b.s).slice(0,8);
+  destroyChart('st');const cstEl=document.getElementById('cStock');
+  if(cstEl&&window.Chart)CHARTS.st=new Chart(cstEl,{type:'bar',data:{labels:stk.map(x=>x.n),datasets:[{label:'Stock',data:stk.map(x=>x.s),backgroundColor:stk.map(x=>x.s<=x.m?'rgba(248,113,113,.6)':'rgba(52,211,153,.5)'),borderRadius:4},{label:'Mínimo',data:stk.map(x=>x.m),type:'line',borderColor:'#F0B429',borderDash:[4,4],pointRadius:0,borderWidth:1.5,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#6B7A99',font:{size:10}}}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'#2A3040'}},y:{ticks:{color:'#6B7A99'},grid:{color:'#2A3040'}}}}});
+
+  const bT={};f.forEach(e=>{const n=e.trabajadores?`${e.trabajadores.nombre} ${e.trabajadores.apellido}`:'—';bT[n]=(bT[n]||0)+1;});
+  const tRk=Object.entries(bT).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('tr');const ctrEl=document.getElementById('cTr');
+  if(ctrEl&&window.Chart)CHARTS.tr=new Chart(ctrEl,{type:'bar',data:{labels:tRk.map(x=>x[0]),datasets:[{data:tRk.map(x=>x[1]),backgroundColor:'rgba(96,165,250,.5)',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',stepSize:1},grid:{color:'#2A3040'}},y:{ticks:{color:'#E8EDF5',font:{size:11}},grid:{display:false}}}}});
+}
+
+function renderVistaTr(f){
+  const bE={};f.forEach(e=>e.detalle_entregas.forEach(d=>{bE[d.epp_nombre]=(bE[d.epp_nombre]||0)+d.cantidad;}));
+  const eRk=Object.entries(bE).sort((a,b)=>b[1]-a[1]);
+  destroyChart('trEpp');const cEl=document.getElementById('cTrEpp');
+  if(cEl&&window.Chart)CHARTS.trEpp=new Chart(cEl,{type:'bar',data:{labels:eRk.map(x=>x[0]),datasets:[{data:eRk.map(x=>x[1]),backgroundColor:'rgba(240,180,41,.6)',borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',stepSize:1},grid:{color:'#2A3040'}},y:{ticks:{color:'#E8EDF5',font:{size:11}},grid:{display:false}}}}});
+
+  const bF={};f.forEach(e=>{const d=new Date(e.fecha).toLocaleDateString('es-CL');bF[d]=(bF[d]||0)+1;});
+  const fechas=Object.keys(bF).sort((a,b)=>new Date(a.split('/').reverse().join('-'))-new Date(b.split('/').reverse().join('-')));
+  destroyChart('trCal');const cCal=document.getElementById('cTrCal');
+  if(cCal&&window.Chart)CHARTS.trCal=new Chart(cCal,{type:'bar',data:{labels:fechas,datasets:[{data:fechas.map(d=>bF[d]),backgroundColor:'rgba(96,165,250,.6)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6B7A99',font:{size:10}},grid:{color:'#2A3040'}},y:{ticks:{color:'#6B7A99',stepSize:1},grid:{color:'#2A3040'}}}}});
+
+  document.getElementById('dDetTrCont').innerHTML=`<div class="twrap"><table><thead><tr><th>Fecha</th><th>EPP</th><th>Cant.</th><th>Val.</th><th>Doc.</th></tr></thead>
+  <tbody>${f.map(e=>`<tr><td style="white-space:nowrap;">${fmtF(e.fecha)}</td><td>${e.detalle_entregas.map(d=>d.epp_nombre).join(', ')}</td><td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td><span class="badge ${e.tipo_validacion==='firma'?'bv':'ba'}">${e.tipo_validacion==='firma'?'Firma':'PIN'}</span></td><td>${e.formulario_url?`<button class="btn sec sm" onclick="verDoc('${e.formulario_url}')">📎</button>`:e.firma_data?'✍':'—'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ════════════════════════════════════════
+// INVENTARIO
+// ════════════════════════════════════════
+async function cargarEPPs(){
+  const{data}=await SB.from('epps').select('*').order('nombre');
+  EPPS=data||[];renderInv();renderInvStats();renderEPPChips();
+}
+function renderInvStats(){
+  const tot=EPPS.reduce((a,e)=>a+e.stock,0),low=EPPS.filter(e=>e.stock<=e.stock_minimo&&e.stock>0).length,ag=EPPS.filter(e=>e.stock<=0).length;
+  const el=document.getElementById('invStats');if(!el)return;
+  el.innerHTML=`<div class="sc"><div class="sv">${EPPS.length}</div><div class="sl">Tipos</div></div><div class="sc ve"><div class="sv">${tot}</div><div class="sl">En stock</div></div><div class="sc am"><div class="sv">${low}</div><div class="sl">Bajo mínimo</div></div><div class="sc ro"><div class="sv">${ag}</div><div class="sl">Agotados</div></div>`;
+}
+function renderInv(){
+  const q=(document.getElementById('filtInv')?.value||'').toLowerCase();
+  const cat=document.getElementById('filtInvCat')?.value||'';
+  let f=EPPS.filter(e=>e.nombre.toLowerCase().includes(q)||(e.categoria||'').toLowerCase().includes(q));
+  if(cat)f=f.filter(e=>e.categoria===cat);
+  const tb=document.getElementById('invTb');if(!tb)return;
+  tb.innerHTML=f.length?f.map(e=>{
+    const[sc,st]=e.stock<=0?['br','Agotado']:e.stock<=e.stock_minimo?['by','Bajo']:['bv','OK'];
+    const adminBtns=canEdit()?`<button class="btn sec sm" onclick="editEPP('${e.id}')">✏</button><button class="btn sec sm" onclick="adjStock('${e.id}')">+/−</button>`:'';
+    const delBtn=isAdmin()?`<button class="btn dan sm" onclick="iniciarEliminar('epp','${e.id}','${e.nombre.replace(/'/g,"\\'")}')">🗑</button>`:'';
+    return `<tr><td><strong>${e.nombre}</strong></td><td><span class="badge ba">${e.categoria}</span></td><td><strong style="font-family:var(--mono);font-size:15px;">${e.stock}</strong></td><td>${e.stock_minimo}</td><td>${e.unidad}</td><td><span class="badge ${sc}">${st}</span></td><td style="display:flex;gap:5px;">${adminBtns}${delBtn}</td></tr>`;
+  }).join(''):`<tr><td colspan="7" class="vacio">Sin resultados</td></tr>`;
+}
+async function saveEPP(){
+  if(!canEdit()){toast('Sin permisos','err');return;}
+  const nom=document.getElementById('iNom').value.trim();if(!nom){toast('Nombre requerido','err');return;}
+  const obj={nombre:nom,categoria:document.getElementById('iCat').value,stock:parseInt(document.getElementById('iSt').value)||0,stock_minimo:parseInt(document.getElementById('iMin').value)||5,unidad:document.getElementById('iUn').value.trim()||'unidad',updated_at:new Date().toISOString()};
+  if(EDITEPPID){await SB.from('epps').update(obj).eq('id',EDITEPPID);EDITEPPID=null;}
+  else await SB.from('epps').insert(obj);
+  toast('EPP guardado','ok');cancelInv();await cargarEPPs();await cargarFiltros();
+}
+function editEPP(id){const e=EPPS.find(x=>x.id===id);if(!e)return;document.getElementById('iNom').value=e.nombre;document.getElementById('iCat').value=e.categoria;document.getElementById('iSt').value=e.stock;document.getElementById('iMin').value=e.stock_minimo;document.getElementById('iUn').value=e.unidad;EDITEPPID=id;document.getElementById('invFormTit').textContent='✏ Editar EPP';document.getElementById('invFormTit').scrollIntoView({behavior:'smooth'});}
+function cancelInv(){EDITEPPID=null;['iNom','iSt','iMin','iUn'].forEach(id=>document.getElementById(id).value='');document.getElementById('iCat').value='Cabeza';document.getElementById('invFormTit').textContent='➕ Agregar EPP';}
+async function adjStock(id){const e=EPPS.find(x=>x.id===id);if(!e)return;const n=parseInt(prompt(`Ajustar stock de "${e.nombre}" (actual: ${e.stock})\nCantidad a sumar (negativo para restar):`));if(isNaN(n))return;await SB.from('epps').update({stock:Math.max(0,e.stock+n),updated_at:new Date().toISOString()}).eq('id',id);toast('Stock actualizado','ok');await cargarEPPs();}
+function exportInvCSV(){let c='Nombre,Categoría,Stock,Mínimo,Unidad,Estado\n';EPPS.forEach(e=>{const st=e.stock<=0?'Agotado':e.stock<=e.stock_minimo?'Bajo':'OK';c+=`"${e.nombre}","${e.categoria}","${e.stock}","${e.stock_minimo}","${e.unidad}","${st}"\n`;});dlCSV(c,'inventario.csv');}
+
+// IMPORTAR EPPs desde CSV
+async function importarEPPs(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const r=new FileReader();
+    r.onload=async e=>{
+      const lines=e.target.result.split('\n').filter(l=>l.trim());
+      let ok=0,sk=0;
+      for(let i=1;i<lines.length;i++){
+        const c=lines[i].split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+        const[nombre,categoria,stock,stock_minimo,unidad]=c;
+        if(!nombre){sk++;continue;}
+        const{error}=await SB.from('epps').insert({nombre,categoria:categoria||'Otro',stock:parseInt(stock)||0,stock_minimo:parseInt(stock_minimo)||5,unidad:unidad||'unidad',updated_at:new Date().toISOString()});
+        if(error)sk++;else ok++;
+      }
+      toast(`EPP importados: ${ok} · Omitidos: ${sk}`,'ok');await cargarEPPs();await cargarFiltros();
+    };
+    r.readAsText(f);
+  }else{toast('Por ahora solo se soporta CSV. Guarda tu Excel como CSV desde Excel → Guardar como → CSV.','warn');}
+  ev.target.value='';
+}
+
+// ════════════════════════════════════════
+// TRABAJADORES
+// ════════════════════════════════════════
+async function cargarTrs(){
+  const{data}=await SB.from('trabajadores').select('*').order('apellido');
+  TRABAJADORES=data||[];renderTr();
+}
+function renderTr(){
+  const q=(document.getElementById('filtTr')?.value||'').toLowerCase();
+  const f=TRABAJADORES.filter(t=>(t.nombre+' '+t.apellido).toLowerCase().includes(q)||t.rut.toLowerCase().includes(q)||(t.cargo||'').toLowerCase().includes(q));
+  const tb=document.getElementById('trTb');if(!tb)return;
+  tb.innerHTML=f.length?f.map(t=>{
+    const activo=t.activo!==false;
+    const adminBtns=canEdit()&&activo?`<button class="btn sec sm" onclick="editTr('${t.id}')">✏</button>`:'';
+    const delBtn=isAdmin()&&activo?`<button class="btn dan sm" onclick="iniciarEliminar('trabajador','${t.id}','${(t.nombre+' '+t.apellido).replace(/'/g,"\\'")} (${t.rut})')">Desactivar</button>`:'';
+    return `<tr class="${activo?'':'del-row'}">
+      <td><strong>${t.nombre} ${t.apellido}</strong></td>
+      <td style="font-family:var(--mono);font-size:11px;">${t.rut}</td>
+      <td>${t.cargo||'—'}</td>
+      <td><span id="ue-${t.id}" class="badge bg">—</span></td>
+      <td><span class="badge ${activo?'bv':'br'}">${activo?'Activo':'Inactivo'}</span></td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap;">
+        <button class="btn sec sm" onclick="verHistTr('${t.id}')">📋 Historial</button>
+        ${adminBtns}${delBtn}
+      </td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="6" class="vacio">Sin resultados</td></tr>`;
+  f.forEach(t=>cargarUE(t.id));
+}
+async function cargarUE(id){const{data}=await SB.from('entregas').select('fecha').eq('trabajador_id',id).order('fecha',{ascending:false}).limit(1);const el=document.getElementById('ue-'+id);if(!el)return;el.outerHTML=data&&data[0]?`<span style="font-size:11px;color:var(--tm);">${fmtF(data[0].fecha)}</span>`:`<span class="badge bg">Sin entregas</span>`;}
+async function saveTr(){
+  if(!canEdit()){toast('Sin permisos','err');return;}
+  const nom=document.getElementById('tNom').value.trim(),ape=document.getElementById('tApe').value.trim(),rut=document.getElementById('tRut').value.trim();
+  if(!nom||!ape||!rut){toast('Nombre, apellido y RUT requeridos','err');return;}
+  const pin=document.getElementById('tPin').value.trim();
+  if(pin&&(pin.length!==4||!/^\d{4}$/.test(pin))){toast('PIN debe ser 4 dígitos','err');return;}
+  const obj={nombre:nom,apellido:ape,rut,cargo:document.getElementById('tCar').value.trim(),pin_hash:pin||null};
+  if(EDITTRID){const{error}=await SB.from('trabajadores').update(obj).eq('id',EDITTRID);if(error){toast(error.message,'err');return;};EDITTRID=null;}
+  else{const{error}=await SB.from('trabajadores').insert({...obj,activo:true});if(error){toast(error.message,'err');return;}}
+  toast('Guardado','ok');cancelTr();await cargarTrs();await cargarFiltros();
+}
+function editTr(id){const t=TRABAJADORES.find(x=>x.id===id);if(!t)return;document.getElementById('tNom').value=t.nombre;document.getElementById('tApe').value=t.apellido;document.getElementById('tRut').value=t.rut;document.getElementById('tCar').value=t.cargo||'';document.getElementById('tPin').value='';EDITTRID=id;document.getElementById('trFormTit').textContent='✏ Editar Trabajador';}
+function cancelTr(){EDITTRID=null;['tNom','tApe','tRut','tCar','tPin'].forEach(id=>document.getElementById(id).value='');document.getElementById('trFormTit').textContent='➕ Registrar Trabajador';}
+function importTrCSV(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=async e=>{
+    const lines=e.target.result.split('\n').filter(l=>l.trim());let ok=0,sk=0;
+    for(let i=1;i<lines.length;i++){
+      const c=lines[i].split(',').map(x=>x.trim().replace(/^"|"$/g,''));
+      const[nombre,apellido,rut,cargo,,pin]=c;
+      if(!nombre||!rut){sk++;continue;}
+      const{error}=await SB.from('trabajadores').insert({nombre,apellido:apellido||'',rut,cargo:cargo||'',pin_hash:pin||null,activo:true});
+      if(error)sk++;else ok++;
+    }
+    toast(`Importados: ${ok} · Omitidos: ${sk}`,'ok');await cargarTrs();await cargarFiltros();
+  };
+  r.readAsText(f);ev.target.value='';
+}
+function exportTrCSV(){let c='Nombre,Apellido,RUT,Cargo\n';TRABAJADORES.forEach(t=>{c+=`"${t.nombre}","${t.apellido}","${t.rut}","${t.cargo||''}"\n`;});dlCSV(c,'trabajadores.csv');}
+
+// HISTORIAL DETALLADO DE TRABAJADOR
+async function verHistTr(trId){
+  const t=TRABAJADORES.find(x=>x.id===trId);if(!t)return;
+  const{data:ents}=await SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,detalle_entregas(cantidad,epp_nombre,epp_id)').eq('trabajador_id',trId).order('fecha',{ascending:false});
+  const e=ents||[];
+  const totalUnd=e.reduce((a,x)=>a+x.detalle_entregas.reduce((b,d)=>b+d.cantidad,0),0);
+  const conFirma=e.filter(x=>x.firma_data).length,conDoc=e.filter(x=>x.formulario_url).length;
+  const byEPP={};
+  e.forEach(x=>x.detalle_entregas.forEach(d=>{if(!byEPP[d.epp_nombre])byEPP[d.epp_nombre]={total:0,fechas:[]};byEPP[d.epp_nombre].total+=d.cantidad;byEPP[d.epp_nombre].fechas.push(new Date(x.fecha));}));
+  const durs=Object.entries(byEPP).map(([nom,d])=>{
+    if(d.fechas.length<2)return{nom,dias:null,total:d.total};
+    const s=d.fechas.sort((a,b)=>a-b),dfs=[];
+    for(let i=1;i<s.length;i++)dfs.push((s[i]-s[i-1])/(864e5));
+    return{nom,dias:Math.round(dfs.reduce((a,b)=>a+b,0)/dfs.length),total:d.total};
+  }).sort((a,b)=>b.total-a.total);
+  HISTDATA=[...e];
+  document.getElementById('moDetTit').textContent=`${t.nombre} ${t.apellido} — ${t.rut}`;
+  document.getElementById('moDetCont').innerHTML=`
+    <div class="g3" style="margin-bottom:14px;">
+      <div class="ht-stat"><div class="ht-stat-val">${e.length}</div><div class="ht-stat-lbl">Entregas</div></div>
+      <div class="ht-stat"><div class="ht-stat-val">${totalUnd}</div><div class="ht-stat-lbl">Unidades</div></div>
+      <div class="ht-stat"><div class="ht-stat-val">${conFirma}</div><div class="ht-stat-lbl">Con firma</div></div>
+    </div>
+    <div class="sec-title">Duración promedio por EPP</div>
+    ${durs.map(d=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px;"><div style="flex:1;"><strong>${d.nom}</strong> <span style="color:var(--tm);">· ${d.total} und.</span></div><div style="color:var(--am);font-size:12px;">${d.dias?d.dias+' días entre entregas':'1 entrega'}</div></div><div class="duracion-bar"><div class="duracion-fill" style="width:${d.dias?Math.min(100,d.dias/90*100):10}%;background:${d.dias&&d.dias<30?'var(--am)':'var(--ve)'};"></div></div>`).join('')}
+    <div class="sec-title" style="margin-top:16px;">Historial completo</div>
+    <div class="twrap"><table><thead><tr><th>Fecha</th><th>EPP entregado</th><th>Cant.</th><th>Val.</th><th>Firma</th><th>Doc.</th></tr></thead>
+    <tbody>${e.map(x=>`<tr><td style="white-space:nowrap;">${fmtF(x.fecha)}</td><td>${x.detalle_entregas.map(d=>d.epp_nombre+' ×'+d.cantidad).join(', ')}</td><td>${x.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td><span class="badge ${x.tipo_validacion==='firma'?'bv':'ba'}">${x.tipo_validacion==='firma'?'Firma':'PIN'}</span></td><td>${x.firma_data?`<button class="btn sec sm" onclick="verFirma('${x.id}')">✍</button>`:'<span class="badge bg">No</span>'}</td><td>${x.formulario_url?`<button class="btn suc sm" onclick="verDoc('${x.formulario_url}')">📎</button>`:'<span class="badge bg">No</span>'}</td></tr>`).join('')}</tbody></table></div>`;
+  document.getElementById('moDet').classList.add('abierto');
+}
+
+// ════════════════════════════════════════
+// ENTREGA — TRABAJADOR
+// ════════════════════════════════════════
+function renderTrRecientes(){
+  const el=document.getElementById('trRecientes');if(!el)return;
+  const rec=TR_RECIENTES.slice(0,6);
+  if(!rec.length){document.getElementById('trRecientesWrap').style.display='none';return;}
+  document.getElementById('trRecientesWrap').style.display='block';
+  el.innerHTML=rec.map(t=>`<div class="rec-chip" onclick='selTr(${JSON.stringify(t).replace(/'/g,"\\'")})'">👷 ${t.nombre} ${t.apellido}</div>`).join('');
+}
+function guardarTrRec(t){TR_RECIENTES=TR_RECIENTES.filter(x=>x.id!==t.id);TR_RECIENTES.unshift({id:t.id,nombre:t.nombre,apellido:t.apellido,rut:t.rut,cargo:t.cargo,pin_hash:t.pin_hash});TR_RECIENTES=TR_RECIENTES.slice(0,8);try{localStorage.setItem('epp_tr_rec',JSON.stringify(TR_RECIENTES));}catch{}}
+async function buscarTr(){
+  const q=document.getElementById('bTr').value.toLowerCase().trim();
+  const el=document.getElementById('resTr');
+  if(!q){el.innerHTML='';return;}
+  const{data}=await SB.from('trabajadores').select('id,nombre,apellido,rut,cargo,pin_hash').eq('activo',true).or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,rut.ilike.%${q}%`).limit(8);
+  if(!data?.length){el.innerHTML='<p style="color:var(--tm);font-size:13px;padding:7px;">Sin resultados</p>';return;}
+  el.innerHTML=data.map(t=>`<div onclick='selTr(${JSON.stringify(t).replace(/'/g,"\\'")})'
+    style="padding:8px 11px;cursor:pointer;border-radius:6px;margin-bottom:3px;background:var(--s3);border:1px solid var(--brd);"
+    onmouseenter="this.style.borderColor='var(--am)'" onmouseleave="this.style.borderColor='var(--brd)'">
+    <div style="font-weight:600;color:var(--wh);">${t.nombre} ${t.apellido}</div>
+    <div style="font-size:11px;color:var(--tm);">${t.rut}${t.cargo?' · '+t.cargo:''}</div>
+  </div>`).join('');
+}
+async function selTr(t){
+  CURTR=t;
+  document.getElementById('bTr').value='';document.getElementById('resTr').innerHTML='';
+  document.getElementById('trSelBox').style.display='block';
+  document.getElementById('trRecientesWrap').style.display='none';
+  document.getElementById('trSN').textContent=t.nombre+' '+t.apellido;
+  document.getElementById('trSR').textContent=t.rut;
+  document.getElementById('trSC').textContent=t.cargo||'';
+  const{data:ue}=await SB.from('entregas').select('fecha').eq('trabajador_id',t.id).order('fecha',{ascending:false}).limit(1);
+  document.getElementById('trSUE').textContent=ue&&ue[0]?'Última entrega: '+fmtF(ue[0].fecha):'Sin entregas previas';
+  guardarTrRec(t);
+}
+function limpiarTrSel(){CURTR=null;document.getElementById('trSelBox').style.display='none';document.getElementById('trRecientesWrap').style.display='block';document.getElementById('bTr').value='';document.getElementById('resTr').innerHTML='';}
+function abrirModalTr(){document.getElementById('moAddTr').classList.add('abierto');}
+async function guardarTrRapido(){
+  const nom=document.getElementById('atNom').value.trim(),ape=document.getElementById('atApe').value.trim(),rut=document.getElementById('atRut').value.trim();
+  if(!nom||!ape||!rut){toast('Nombre, apellido y RUT requeridos','err');return;}
+  const pin=document.getElementById('atPin').value.trim();
+  const{data,error}=await SB.from('trabajadores').insert({nombre:nom,apellido:ape,rut,cargo:document.getElementById('atCar').value.trim(),pin_hash:pin||null,activo:true}).select().single();
+  if(error){toast(error.message,'err');return;}
+  toast('Trabajador registrado','ok');closeM('moAddTr');
+  ['atNom','atApe','atRut','atCar','atPin'].forEach(id=>document.getElementById(id).value='');
+  await cargarTrs();await cargarFiltros();selTr(data);
+}
+
+// ════════════════════════════════════════
+// ENTREGA — EPP
+// ════════════════════════════════════════
+async function cargarEPPFrecuentes(){
+  try{
+    const{data}=await SB.from('detalle_entregas').select('epp_nombre,epp_id').limit(500);
+    const cnt={};(data||[]).forEach(d=>{if(!cnt[d.epp_id])cnt[d.epp_id]={nombre:d.epp_nombre,c:0};cnt[d.epp_id].c++;});
+    EPP_FRECUENTES=Object.entries(cnt).sort((a,b)=>b[1].c-a[1].c).slice(0,6).map(([id,v])=>({id,nombre:v.nombre}));
+    renderEPPFrecuentes();
+  }catch{}
+}
+function renderEPPFrecuentes(){
+  const el=document.getElementById('eppFrecuentes');if(!el)return;
+  if(!EPP_FRECUENTES.length){document.getElementById('eppFrecuentesWrap').style.display='none';return;}
+  el.innerHTML=EPP_FRECUENTES.map(f=>{
+    const epp=EPPS.find(x=>x.id===f.id||x.nombre===f.nombre);
+    const ag=epp&&epp.stock<=0;
+    const sc=!epp?'':epp.stock<=0?'color:var(--ro)':epp.stock<=epp.stock_minimo?'color:var(--am)':'color:var(--ve)';
+    return `<div class="rec-chip" onclick="${ag?'toast(\'Sin stock\',\'warn\')':epp?`addEPP('${epp.id}')`:''}" style="${ag?'opacity:.5;':''}">📦 ${f.nombre} ${epp?`<span style="${sc};font-size:10px;">${epp.stock<=0?'✗':epp.stock}</span>`:''}`;
+  }).join('');
+}
+function filtrarEPP(){const q=document.getElementById('bEpp').value.toLowerCase();renderEPPChips(q);}
+function renderEPPChips(filtro=''){
+  const el=document.getElementById('eChips');if(!el)return;
+  const lista=filtro?EPPS.filter(e=>e.nombre.toLowerCase().includes(filtro)):EPPS;
+  el.innerHTML=lista.map(e=>{
+    const s=EPPSEL[e.id]||0,ag=e.stock<=0;
+    const sc=ag?'color:var(--ro)':e.stock<=e.stock_minimo?'color:var(--am)':'color:var(--ve)';
+    return `<div class="chip ${s>0?'sel':''}" style="${ag?'opacity:.5;':''}">
+      ${e.nombre} <span style="${sc};font-size:10px;" title="Stock: ${e.stock} ${e.unidad}">·${ag?'✗':e.stock}</span>
+      ${s>0?`<span class="qty">${s}</span>`:''}
+      ${!ag&&s===0?`<button class="cib" data-action="add" data-id="${e.id}">+</button>`:''}
+      ${s>0?`<button class="cib" data-action="sub" data-id="${e.id}">−</button><button class="cib" data-action="add" data-id="${e.id}">+</button>`:''}
+    </div>`;
+  }).join('');
+  el.onclick=ev=>{const btn=ev.target.closest('[data-action]');if(!btn)return;const{action,id}=btn.dataset;if(action==='add')addEPP(id);else subEPP(id);};
+  const er=document.getElementById('eRes');if(!er)return;
+  const ids=Object.keys(EPPSEL);
+  er.innerHTML=ids.length?'<strong style="color:var(--am)">Sel:</strong> '+ids.map(id=>`${EPPS.find(x=>x.id===id)?.nombre} ×${EPPSEL[id]}`).join(' · '):'Ningún EPP seleccionado';
+}
+function addEPP(id){const e=EPPS.find(x=>x.id===id);if(!e)return;const a=EPPSEL[id]||0;if(a>=e.stock){toast('Sin stock','warn');return;}EPPSEL[id]=a+1;renderEPPChips(document.getElementById('bEpp')?.value||'');}
+function subEPP(id){if(!EPPSEL[id])return;EPPSEL[id]--;if(!EPPSEL[id])delete EPPSEL[id];renderEPPChips(document.getElementById('bEpp')?.value||'');}
+function abrirModalEPP(){document.getElementById('moAddEPP').classList.add('abierto');}
+async function guardarEPPRapido(){
+  const nom=document.getElementById('aeNom').value.trim();if(!nom){toast('Nombre requerido','err');return;}
+  const{error}=await SB.from('epps').insert({nombre:nom,categoria:document.getElementById('aeCat').value,stock:parseInt(document.getElementById('aeSt').value)||0,stock_minimo:parseInt(document.getElementById('aeMin').value)||5,unidad:document.getElementById('aeUn').value.trim()||'unidad',updated_at:new Date().toISOString()});
+  if(error){toast(error.message,'err');return;}
+  toast('EPP agregado','ok');closeM('moAddEPP');['aeNom','aeSt','aeMin','aeUn'].forEach(id=>document.getElementById(id).value='');
+  await cargarEPPs();await cargarFiltros();
+}
+
+// ════════════════════════════════════════
+// ARCHIVO ADJUNTO
+// ════════════════════════════════════════
+function handleDrop(ev){ev.preventDefault();document.getElementById('uzone').classList.remove('drag');if(ev.dataTransfer.files[0])setFile({target:{files:ev.dataTransfer.files}});}
+function setFile(ev){const f=ev.target.files[0];if(!f)return;if(f.size>10*1024*1024){toast('Archivo muy grande','err');return;}ARCHIVO=f;document.getElementById('uzoneTxt').innerHTML=`✅ ${f.name} (${(f.size/1024).toFixed(0)} KB) <button onclick="clearFile()" style="background:none;border:none;color:var(--ro);cursor:pointer;">✕</button>`;}
+function clearFile(){ARCHIVO=null;document.getElementById('uzoneTxt').textContent='📎 Clic o arrastra PDF / imagen';document.getElementById('fileIn').value='';}
+
+// ════════════════════════════════════════
+// REGISTRAR ENTREGA
+// ════════════════════════════════════════
+async function registrar(){
+  if(!canEdit()){toast('Sin permisos','err');return;}
+  if(!CURTR){toast('Selecciona un trabajador','err');return;}
+  const ids=Object.keys(EPPSEL);if(!ids.length){toast('Selecciona al menos un EPP','err');return;}
+  let val='';
+  if(CURTAB==='firma'){if(!SIGDATA){toast('Se requiere firma','err');return;}val='firma';}
+  else{if(PINVAL.length!==4){toast('PIN de 4 dígitos','err');return;}if(CURTR.pin_hash&&PINVAL!==CURTR.pin_hash){toast('PIN incorrecto','err');pclr();return;}val='pin';}
+  const btn=document.getElementById('btnReg');btn.disabled=true;btn.textContent='Registrando...';
+  try{
+    let formUrl=null;
+    if(ARCHIVO){const ext=ARCHIVO.name.split('.').pop();const path=`${CURTR.id}/${Date.now()}.${ext}`;const{error:ue}=await SB.storage.from('formularios').upload(path,ARCHIVO);if(!ue){const{data:u}=SB.storage.from('formularios').getPublicUrl(path);formUrl=u.publicUrl;}}
+    const{data:ent,error:ee}=await SB.from('entregas').insert({trabajador_id:CURTR.id,usuario_id:YO?.id,tipo_validacion:val,firma_data:val==='firma'?SIGDATA:null,formulario_url:formUrl,observaciones:document.getElementById('eObs').value.trim()||null}).select().single();
+    if(ee)throw ee;
+    const{error:de}=await SB.from('detalle_entregas').insert(ids.map(id=>({entrega_id:ent.id,epp_id:id,cantidad:EPPSEL[id],epp_nombre:EPPS.find(x=>x.id===id)?.nombre||'—'})));
+    if(de)throw de;
+    EPPSEL_SNAP={...EPPSEL};
+    toast(`✔ Entrega registrada — ${CURTR.nombre} ${CURTR.apellido}`,'ok');
+    await generarFormulario(ent.id);
+    resetEnt();await cargarEPPs();await cargarEPPFrecuentes();
+  }catch(e){toast('Error: '+e.message,'err');}
+  btn.disabled=false;btn.textContent='✔ REGISTRAR ENTREGA';
+}
+function resetEnt(){
+  CURTR=null;EPPSEL={};SIGDATA=null;PINVAL='';ARCHIVO=null;
+  document.getElementById('bTr').value='';document.getElementById('resTr').innerHTML='';
+  document.getElementById('trSelBox').style.display='none';document.getElementById('trRecientesWrap').style.display='block';
+  clearSig();pclr();clearFile();document.getElementById('eObs').value='';
+  renderEPPChips();renderTrRecientes();
+}
+
+// ════════════════════════════════════════
+// FORMULARIO IMPRIMIBLE
+// ════════════════════════════════════════
+async function generarFormulario(entregaId){
+  let qrUrl='';
+  try{if(window.QRCode){const c=document.createElement('canvas');await QRCode.toCanvas(c,`EPP-${entregaId}`,{width:90,margin:1});qrUrl=c.toDataURL();}}catch{}
+  const fecha=new Date();
+  const eppsD=Object.keys(EPPSEL_SNAP).map(id=>({nombre:EPPS.find(x=>x.id===id)?.nombre||'—',cantidad:EPPSEL_SNAP[id],unidad:EPPS.find(x=>x.id===id)?.unidad||'unidad'}));
+  const w=window.open('','_blank','width=820,height=720');if(!w)return;
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Formulario EPP</title>
+  <style>body{font-family:Arial;padding:30px;color:#000;max-width:780px;margin:0 auto;}.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #F0B429;padding-bottom:12px;margin-bottom:14px;}.id-box{background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:8px 12px;text-align:center;}.id-code{font-family:monospace;font-size:16px;font-weight:800;letter-spacing:2px;}.info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;font-size:13px;}.info label{font-weight:700;font-size:10px;text-transform:uppercase;color:#666;display:block;}table{width:100%;border-collapse:collapse;}th{background:#F0B429;padding:7px;border:1px solid #ddd;font-size:12px;text-align:left;}td{padding:7px;border:1px solid #eee;font-size:13px;}.sig{border:1px solid #ccc;height:75px;border-radius:4px;margin-top:5px;}.nota{background:#fffde7;border:1px solid #F0B429;border-radius:6px;padding:10px;font-size:12px;margin-top:14px;}.footer{margin-top:14px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;}@media print{.no-print{display:none;}}</style>
+  </head><body>
+  <div class="header"><div><h1 style="font-size:19px;margin:0;">⛑ COMPROBANTE DE ENTREGA DE EPP</h1><p style="font-size:12px;color:#666;margin-top:3px;">Debe ser firmado por el trabajador</p></div>
+  <div style="display:flex;gap:10px;align-items:center;">${qrUrl?`<img src="${qrUrl}" style="width:75px;height:75px;">`:''}
+  <div class="id-box"><div style="font-size:10px;color:#666;">ID ENTREGA</div><div class="id-code">EPP-${entregaId.slice(0,8).toUpperCase()}</div><div style="font-size:10px;color:#666;margin-top:3px;">${fecha.toLocaleDateString('es-CL')}</div></div></div></div>
+  <div class="info"><div><label>Trabajador</label>${CURTR?.nombre} ${CURTR?.apellido||''}</div><div><label>RUT</label>${CURTR?.rut||'—'}</div><div><label>Cargo</label>${CURTR?.cargo||'—'}</div><div><label>Fecha y hora</label>${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}</div></div>
+  <table><thead><tr><th>N°</th><th>EPP / Equipo de Protección</th><th>Cantidad</th><th>Unidad</th><th>Conforme ☐</th></tr></thead>
+  <tbody>${eppsD.map((e,i)=>`<tr><td style="text-align:center;">${i+1}</td><td>${e.nombre}</td><td style="text-align:center;">${e.cantidad}</td><td>${e.unidad}</td><td></td></tr>`).join('')}</tbody></table>
+  <p style="font-size:12px;margin:14px 0;">Declaro haber recibido los EPP detallados en conformidad y me comprometo a utilizarlos según las instrucciones de seguridad vigentes.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:14px;">
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;">Firma del Trabajador</div><div class="sig"></div><div style="font-size:11px;color:#666;margin-top:4px;">Nombre: ${CURTR?.nombre} ${CURTR?.apellido||''}</div></div>
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;">Firma Responsable Entrega</div><div class="sig"></div><div style="font-size:11px;color:#666;margin-top:4px;">Nombre: ___________________________</div></div>
+  </div>
+  <div class="nota">📎 <strong>Instrucción:</strong> Una vez firmado, escanee o fotografíe y adjunte en EPP Control → Formularios → Adjuntar · ID: <strong>EPP-${entregaId.slice(0,8).toUpperCase()}</strong></div>
+  <div class="footer">EPP Control · ${entregaId} · ${fecha.toLocaleString('es-CL')}</div>
+  <div class="no-print" style="text-align:center;margin-top:16px;"><button onclick="window.print()" style="background:#F0B429;border:none;padding:10px 22px;font-size:14px;font-weight:700;border-radius:6px;cursor:pointer;">🖨 Imprimir</button></div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script></body></html>`);
+  w.document.close();
+}
+
+// ════════════════════════════════════════
+// HISTORIAL
+// ════════════════════════════════════════
+async function renderHist(){
+  if(!SB)return;
+  const trId=document.getElementById('hTr').value;
+  const eppId=document.getElementById('hEpp').value;
+  const des=document.getElementById('hDes').value;
+  const has=document.getElementById('hHas').value;
+
+  // Query base SIN filtro de fecha por defecto para no perder registros
+  let q=SB.from('entregas')
+    .select('id,fecha,tipo_validacion,firma_data,formulario_url,observaciones,trabajador_id,trabajadores(nombre,apellido,rut),perfiles(nombre),detalle_entregas(cantidad,epp_nombre,epp_id)')
+    .order('fecha',{ascending:false})
+    .limit(500);
+
+  if(trId)q=q.eq('trabajador_id',trId);
+  if(des)q=q.gte('fecha',des+'T00:00:00');
+  if(has)q=q.lte('fecha',has+'T23:59:59');
+
+  const{data,error}=await q;
+  if(error){toast('Error cargando historial: '+error.message,'err');return;}
+
+  HISTDATA=data||[];
+  let f=HISTDATA;
+  if(eppId)f=f.filter(e=>e.detalle_entregas.some(d=>d.epp_id===eppId));
+
+  document.getElementById('histCnt').textContent=`${f.length} registro(s)`;
+  const tb=document.getElementById('histTb');if(!tb)return;
+
+  if(!f.length){
+    tb.innerHTML=`<tr><td colspan="8" class="vacio">${trId?'Este trabajador no tiene entregas registradas':'Sin registros — prueba cambiar los filtros'}</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML=f.map(e=>`<tr>
+    <td style="white-space:nowrap;">${fmtF(e.fecha)}</td>
+    <td><strong>${e.trabajadores?.nombre||'—'} ${e.trabajadores?.apellido||''}</strong></td>
+    <td style="font-family:var(--mono);font-size:11px;">${e.trabajadores?.rut||'—'}</td>
+    <td>${e.detalle_entregas.map(d=>`${d.epp_nombre} ×${d.cantidad}`).join('<br>')}</td>
+    <td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td>
+    <td><span class="badge ${e.tipo_validacion==='firma'?'bv':'ba'}">${e.tipo_validacion==='firma'?'Firma':'PIN'}</span></td>
+    <td style="display:flex;gap:4px;flex-wrap:wrap;">
+      ${e.firma_data?`<button class="btn sec sm" onclick="verFirma('${e.id}')">✍</button>`:''}
+      ${e.formulario_url?`<button class="btn sec sm" onclick="verDoc('${e.formulario_url}')">📎</button>`:''}
+      ${!e.firma_data&&!e.formulario_url?'<span class="badge bg">Solo registro</span>':''}
+    </td>
+    <td style="display:flex;gap:4px;flex-wrap:wrap;">
+      <button class="btn sec sm" onclick="verEntrega('${e.id}')">👁</button>
+      ${isAdmin()?`<button class="btn sec sm" onclick="abrirEditEntrega('${e.id}')">✏</button><button class="btn dan sm" onclick="iniciarEliminar('entrega','${e.id}','Entrega del ${fmtF(e.fecha)}')">🗑</button>`:''}
+    </td>
+  </tr>`).join('');
+}
+
+function clearHist(){['hTr','hEpp'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['hDes','hHas'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderHist();}
+function verFirma(id){const e=HISTDATA.find(x=>x.id===id);if(!e?.firma_data)return;document.getElementById('moImgSrc').src=e.firma_data;document.getElementById('moImg').classList.add('abierto');}
+function verDoc(url){window.open(url,'_blank');}
+function verEntrega(id){
+  const e=HISTDATA.find(x=>x.id===id);if(!e)return;
+  const tr=e.trabajadores;
+  document.getElementById('moDetTit').textContent=`${tr?.nombre||'—'} ${tr?.apellido||''} — ${fmtF(e.fecha)}`;
+  document.getElementById('moDetCont').innerHTML=`<div style="margin-bottom:12px;font-size:13px;color:var(--tm);">RUT: ${tr?.rut||'—'} · Val.: <span class="badge ${e.tipo_validacion==='firma'?'bv':'ba'}">${e.tipo_validacion==='firma'?'Firma digital':'PIN'}</span>${e.observaciones?`<div style="margin-top:5px;">Obs: ${e.observaciones}</div>`:''}</div>
+  <div class="twrap" style="margin-bottom:12px;"><table><thead><tr><th>EPP</th><th>Cantidad</th></tr></thead><tbody>${e.detalle_entregas.map(d=>`<tr><td>${d.epp_nombre}</td><td><strong>${d.cantidad}</strong></td></tr>`).join('')}</tbody></table></div>
+  ${e.firma_data?`<div style="margin-bottom:10px;"><label style="display:block;margin-bottom:5px;">Firma digital:</label><img src="${e.firma_data}" style="max-height:75px;border:1px solid var(--brd);border-radius:6px;background:#fff;"></div>`:''}
+  ${e.formulario_url?`<div><label style="display:block;margin-bottom:5px;">Formulario físico:</label><button class="btn sec sm" onclick="verDoc('${e.formulario_url}')">📎 Ver</button></div>`:''}`;
+  document.getElementById('moDet').classList.add('abierto');
+}
+function exportHistCSV(){
+  let c='Fecha,Hora,Trabajador,RUT,EPP,Cantidad,Validación,Firma,Formulario\n';
+  HISTDATA.forEach(e=>{const d=new Date(e.fecha);e.detalle_entregas.forEach(det=>{c+=`"${d.toLocaleDateString('es-CL')}","${d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}","${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}","${e.trabajadores?.rut||''}","${det.epp_nombre}","${det.cantidad}","${e.tipo_validacion}","${e.firma_data?'Sí':'No'}","${e.formulario_url?'Sí':'No'}"\n`;});});
+  dlCSV(c,'historial.csv');
+}
+function printHistReport(){
+  if(!HISTDATA.length){toast('Sin datos','warn');return;}
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Historial EPP</title><style>body{font-family:Arial;padding:24px;}h1{font-size:18px;border-bottom:2px solid #F0B429;padding-bottom:8px;margin-bottom:14px;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#F0B429;padding:6px 8px;border:1px solid #ddd;}td{padding:6px 8px;border:1px solid #eee;}img.sig{height:28px;border:1px solid #ccc;}</style></head>
+  <body><h1>Historial EPP — ${new Date().toLocaleDateString('es-CL')} · ${HISTDATA.length} registros</h1>
+  <table><thead><tr><th>Fecha</th><th>Trabajador</th><th>RUT</th><th>EPP</th><th>Cant.</th><th>Val.</th><th>Firma</th></tr></thead>
+  <tbody>${HISTDATA.map(e=>`<tr><td>${fmtF(e.fecha)}</td><td>${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}</td><td>${e.trabajadores?.rut||''}</td><td>${e.detalle_entregas.map(d=>d.epp_nombre+' ×'+d.cantidad).join(', ')}</td><td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td>${e.tipo_validacion==='firma'?'Firma':'PIN'}</td><td>${e.firma_data?`<img class="sig" src="${e.firma_data}">`:'—'}</td></tr>`).join('')}</tbody></table>
+  <script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+// ════════════════════════════════════════
+// EDITAR ENTREGA
+// ════════════════════════════════════════
+async function abrirEditEntrega(id){
+  const e=HISTDATA.find(x=>x.id===id);if(!e)return;
+  EDIT_ENT_ID=id;EDIT_ENT_DETALLES=[...e.detalle_entregas];
+  document.getElementById('editEntMotivo').value='';
+  document.getElementById('editEntCont').innerHTML=`
+    <div style="margin-bottom:12px;font-size:13px;color:var(--tm);">Entrega: ${fmtF(e.fecha)} · ${e.trabajadores?.nombre} ${e.trabajadores?.apellido||''}</div>
+    <div class="twrap"><table><thead><tr><th>EPP</th><th>Cantidad actual</th><th>Nueva cantidad</th></tr></thead>
+    <tbody>${e.detalle_entregas.map((d,i)=>`<tr><td>${d.epp_nombre}</td><td>${d.cantidad}</td><td><input type="number" min="0" value="${d.cantidad}" id="editQ-${i}" style="width:80px;"></td></tr>`).join('')}</tbody></table></div>`;
+  document.getElementById('moEditEnt').classList.add('abierto');
+}
+async function guardarEditEntrega(){
+  if(!EDIT_ENT_ID){toast('Sin entrega seleccionada','err');return;}
+  const motivo=document.getElementById('editEntMotivo').value.trim();
+  if(!motivo){toast('El motivo es obligatorio','err');return;}
+  try{
+    for(let i=0;i<EDIT_ENT_DETALLES.length;i++){
+      const nueva=parseInt(document.getElementById('editQ-'+i).value)||0;
+      const det=EDIT_ENT_DETALLES[i];
+      if(nueva!==det.cantidad){
+        const diff=det.cantidad-nueva;
+        await SB.from('detalle_entregas').update({cantidad:nueva}).eq('id',det.id);
+        // Ajustar stock: si redujo la entrega, devolver stock; si aumentó, descontar
+        await SB.from('epps').update({stock:SB.rpc?undefined:undefined,updated_at:new Date().toISOString()}).eq('id',det.epp_id);
+        // Simple: actualizar stock directamente
+        const{data:eppActual}=await SB.from('epps').select('stock').eq('id',det.epp_id).single();
+        if(eppActual){await SB.from('epps').update({stock:Math.max(0,eppActual.stock+diff),updated_at:new Date().toISOString()}).eq('id',det.epp_id);}
+      }
+    }
+    await registrarLog('edicion','entrega',EDIT_ENT_ID,`Edición de cantidades: ${motivo}`);
+    toast('Entrega actualizada','ok');closeM('moEditEnt');renderHist();await cargarEPPs();
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ════════════════════════════════════════
+// ELIMINAR CON MOTIVO Y LOG
+// ════════════════════════════════════════
+function iniciarEliminar(tipo,id,info){
+  ELIM_PENDING={tipo,id,info};
+  document.getElementById('moElimTit').textContent=`Eliminar ${tipo}: ${info}`;
+  document.getElementById('moElimInfo').textContent=`Registro: ${info}`;
+  document.getElementById('elimMotivo').value='';
+  document.getElementById('moEliminar').classList.add('abierto');
+}
+
+async function confirmarEliminar(){
+  const motivo=document.getElementById('elimMotivo').value.trim();
+  if(!motivo){toast('El motivo es obligatorio','err');return;}
+  if(!ELIM_PENDING.id){return;}
+  const{tipo,id,info}=ELIM_PENDING;
+  try{
+    if(tipo==='entrega'){
+      await SB.from('detalle_entregas').delete().eq('entrega_id',id);
+      await SB.from('entregas').delete().eq('id',id);
+    }else if(tipo==='trabajador'){
+      await SB.from('trabajadores').update({activo:false}).eq('id',id);
+    }else if(tipo==='epp'){
+      // Verificar si tiene entregas
+      const{data:det}=await SB.from('detalle_entregas').select('id').eq('epp_id',id).limit(1);
+      if(det&&det.length>0){toast('No se puede eliminar: tiene entregas asociadas. Puedes reducir el stock a 0.','err');return;}
+      await SB.from('epps').delete().eq('id',id);
+    }
+    await registrarLog('eliminacion',tipo,id,`Motivo: ${motivo} | Registro: ${info}`);
+    toast(`${tipo} eliminado/desactivado`,'warn');
+    closeM('moEliminar');
+    if(tipo==='entrega')renderHist();
+    if(tipo==='trabajador')cargarTrs();
+    if(tipo==='epp'){cargarEPPs();cargarFiltros();}
+  }catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function registrarLog(accion,tipo,refId,detalle){
+  try{
+    // Usar tabla log_cambios si existe, sino solo mostrar en consola
+    await SB.from('log_cambios').insert({usuario_id:YO?.id,usuario_nombre:PERFIL?.nombre||'—',accion,tipo_registro:tipo,registro_id:refId,detalle,fecha:new Date().toISOString()});
+  }catch(e){
+    // Si la tabla no existe, no es crítico
+    console.log('Log (sin tabla):', accion, tipo, detalle);
+  }
+}
+
+// ════════════════════════════════════════
+// LOG DE CAMBIOS
+// ════════════════════════════════════════
+async function cargarLog(){
+  try{
+    const{data,error}=await SB.from('log_cambios').select('*').order('fecha',{ascending:false}).limit(200);
+    const tb=document.getElementById('logTb');if(!tb)return;
+    if(error){tb.innerHTML=`<tr><td colspan="6" class="vacio">Tabla log_cambios no existe aún.<br><small>Ejecuta en Supabase SQL Editor:<br>CREATE TABLE log_cambios(id UUID PRIMARY KEY DEFAULT gen_random_uuid(), usuario_id UUID, usuario_nombre TEXT, accion TEXT, tipo_registro TEXT, registro_id TEXT, detalle TEXT, fecha TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE log_cambios DISABLE ROW LEVEL SECURITY; GRANT ALL ON log_cambios TO authenticated,anon;</small></td></tr>`;return;}
+    tb.innerHTML=(data||[]).length?(data||[]).map(l=>`<tr><td style="white-space:nowrap;">${fmtF(l.fecha)}</td><td>${l.usuario_nombre||'—'}</td><td><span class="badge ${l.accion==='eliminacion'?'br':'by'}">${l.accion}</span></td><td>${l.tipo_registro}</td><td style="font-size:11px;font-family:var(--mono);">${l.registro_id?.slice(0,8)||'—'}</td><td>${l.detalle||'—'}</td></tr>`).join(''):`<tr><td colspan="6" class="vacio">Sin registros en el log</td></tr>`;
+  }catch(e){const tb=document.getElementById('logTb');if(tb)tb.innerHTML=`<tr><td colspan="6" class="vacio">Error: ${e.message}</td></tr>`;}
+}
+
+// ════════════════════════════════════════
+// FORMULARIOS
+// ════════════════════════════════════════
+async function renderForms(){
+  const q=(document.getElementById('frmQ')?.value||'').toLowerCase();
+  const des=document.getElementById('frmDes')?.value,has=document.getElementById('frmHas')?.value;
+  let qb=SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,trabajadores(nombre,apellido,rut),detalle_entregas(cantidad,epp_nombre)').order('fecha',{ascending:false}).limit(200);
+  if(des)qb=qb.gte('fecha',des+'T00:00:00');if(has)qb=qb.lte('fecha',has+'T23:59:59');
+  const{data}=await qb;FRMDATA=data||[];
+  let f=FRMDATA;
+  if(q)f=f.filter(e=>(e.trabajadores?.nombre+' '+e.trabajadores?.apellido).toLowerCase().includes(q)||e.trabajadores?.rut?.includes(q));
+  const tb=document.getElementById('frmTb');if(!tb)return;
+  tb.innerHTML=f.length?f.map(e=>`<tr>
+    <td style="white-space:nowrap;">${fmtF(e.fecha)}</td>
+    <td><strong>${e.trabajadores?.nombre} ${e.trabajadores?.apellido||''}</strong></td>
+    <td style="font-family:var(--mono);font-size:11px;">${e.trabajadores?.rut||'—'}</td>
+    <td>${e.detalle_entregas.map(d=>d.epp_nombre).join(', ')}</td>
+    <td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td>
+    <td>${e.firma_data?`<button class="btn suc sm" onclick="verFirmaFrm('${e.id}')">✍ Ver</button>`:'<span class="badge bg">Sin firma</span>'}</td>
+    <td>${e.formulario_url?`<button class="btn suc sm" onclick="verDoc('${e.formulario_url}')">📎 Ver</button>`:`<label class="btn sec sm" style="cursor:pointer;">📤 Adjuntar<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="subirForm(event,'${e.id}')"></label>`}</td>
+    <td><button class="btn sec sm" onclick="imprimirEntrada('${e.id}')">🖨</button></td>
+  </tr>`).join(''):`<tr><td colspan="8" class="vacio">Sin formularios</td></tr>`;
+}
+function verFirmaFrm(id){const e=FRMDATA.find(x=>x.id===id);if(!e?.firma_data)return;document.getElementById('moImgSrc').src=e.firma_data;document.getElementById('moImg').classList.add('abierto');}
+async function subirForm(ev,entId){
+  const f=ev.target.files[0];if(!f)return;
+  if(f.size>10*1024*1024){toast('Archivo muy grande','err');return;}
+  toast('Subiendo...','warn');
+  const ext=f.name.split('.').pop();
+  const{error:ue}=await SB.storage.from('formularios').upload(`entradas/${entId}.${ext}`,f,{upsert:true});
+  if(ue){toast('Error: '+ue.message,'err');return;}
+  const{data:u}=SB.storage.from('formularios').getPublicUrl(`entradas/${entId}.${ext}`);
+  await SB.from('entregas').update({formulario_url:u.publicUrl}).eq('id',entId);
+  toast('Formulario adjuntado','ok');renderForms();
+}
+function imprimirEntrada(id){
+  const e=FRMDATA.find(x=>x.id===id);if(!e)return;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Comprobante</title><style>body{font-family:Arial;padding:28px;}h1{font-size:18px;text-align:center;border-bottom:2px solid #F0B429;padding-bottom:10px;}table{width:100%;border-collapse:collapse;}th{background:#F0B429;padding:7px;border:1px solid #ccc;}td{padding:7px;border:1px solid #eee;}.sig{border:1px solid #ccc;height:70px;margin-top:7px;}</style></head>
+  <body><h1>COMPROBANTE EPP</h1><p><strong>Trabajador:</strong> ${e.trabajadores?.nombre} ${e.trabajadores?.apellido||''} | <strong>RUT:</strong> ${e.trabajadores?.rut||'—'} | <strong>Fecha:</strong> ${fmtF(e.fecha)}</p>
+  <table style="margin-top:12px;"><thead><tr><th>EPP</th><th>Cantidad</th></tr></thead><tbody>${e.detalle_entregas.map(d=>`<tr><td>${d.epp_nombre}</td><td style="text-align:center;">${d.cantidad}</td></tr>`).join('')}</tbody></table>
+  ${e.firma_data?`<div style="margin-top:14px;"><strong>Firma digital:</strong><br><img src="${e.firma_data}" style="height:65px;border:1px solid #ccc;margin-top:5px;"></div>`:`<div style="margin-top:20px;"><strong>Firma trabajador:</strong><div class="sig"></div></div>`}
+  <script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+// ════════════════════════════════════════
+// REPORTES — CON PREVIEW
+// ════════════════════════════════════════
+async function renderReportes(){
+  const[{data:trs},{data:epps}]=await Promise.all([
+    SB.from('trabajadores').select('id,nombre,apellido').eq('activo',true).order('apellido'),
+    SB.from('epps').select('id,nombre').order('nombre')
+  ]);
+  const rTr=document.getElementById('rTrSel');if(rTr)rTr.innerHTML='<option value="">Selecciona...</option>'+(trs||[]).map(t=>`<option value="${t.id}">${t.nombre} ${t.apellido}</option>`).join('');
+  const rEpp=document.getElementById('rEppSel');if(rEpp)rEpp.innerHTML='<option value="">Selecciona...</option>'+(epps||[]).map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('');
+}
+
+async function verReporte(tipo){
+  let data=[],titulo='',eppsAll=[];
+  const{data:ea}=await SB.from('epps').select('*');eppsAll=ea||[];
+
+  if(tipo==='inventario'){
+    mostrarPreview('inventario',buildInvHTML(eppsAll),eppsAll.length);return;
+  }
+  if(tipo==='general'){
+    const per=document.getElementById('rPer').value;
+    let desde=periodoDesde(per);
+    if(per==='custom'){const d=document.getElementById('rDes').value;if(d)desde=new Date(d);}
+    let q=SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,trabajadores(nombre,apellido,rut,cargo),detalle_entregas(cantidad,epp_nombre,epp_id)').gte('fecha',desde.toISOString()).order('fecha',{ascending:false});
+    if(per==='custom'){const h=document.getElementById('rHas').value;if(h)q=q.lte('fecha',h+'T23:59:59');}
+    const{data:d}=await q;data=d||[];titulo='Reporte General de Entregas';
+  }
+  else if(tipo==='trabajador'){
+    const trId=document.getElementById('rTrSel').value;if(!trId){toast('Selecciona un trabajador','warn');return;}
+    const per=document.getElementById('rTrPer').value;const desde=periodoDesde(per);
+    const tr=TRABAJADORES.find(x=>x.id===trId)||{nombre:'Trabajador',apellido:''};
+    const{data:d}=await SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,trabajadores(nombre,apellido,rut,cargo),detalle_entregas(cantidad,epp_nombre,epp_id)').eq('trabajador_id',trId).gte('fecha',desde.toISOString()).order('fecha',{ascending:false});
+    data=d||[];titulo=`Historial — ${tr.nombre} ${tr.apellido}`;
+  }
+  else if(tipo==='epp'){
+    const eppId=document.getElementById('rEppSel').value;if(!eppId){toast('Selecciona un EPP','warn');return;}
+    const per=document.getElementById('rEppPer').value;const desde=periodoDesde(per);
+    const epp=eppsAll.find(x=>x.id===eppId)||{nombre:'EPP'};
+    const{data:d}=await SB.from('entregas').select('id,fecha,tipo_validacion,firma_data,formulario_url,trabajadores(nombre,apellido,rut,cargo),detalle_entregas(cantidad,epp_nombre,epp_id)').gte('fecha',desde.toISOString()).order('fecha',{ascending:false});
+    data=(d||[]).filter(e=>e.detalle_entregas.some(x=>x.epp_id===eppId));titulo=`Entregas de "${epp.nombre}"`;
+  }
+  mostrarPreview(tipo,buildEntregasHTML(data,titulo),data.length);
+}
+
+function mostrarPreview(tipo,html,count){
+  const pid='prev-'+tipo;
+  document.getElementById(pid).innerHTML=`
+    <div class="rep-toolbar">
+      <span>${count} registro(s) encontrado(s)</span>
+      <button class="btn pri sm" onclick="window.open('','_blank').document.write(document.getElementById('_rephtml_${tipo}').innerHTML);window.open('','_blank').print()">🖨 Imprimir PDF</button>
+      <button class="btn sec sm" onclick="exportarRepCSV('${tipo}')">⬇ Exportar CSV</button>
+    </div>
+    <div id="_rephtml_${tipo}" style="display:none">${html}</div>
+    <div class="rep-preview">${html}</div>`;
+}
+
+// Guardar datos para CSV de reportes
+let REP_DATA={};
+async function exportarRepCSV(tipo){
+  // Reconstruir query simple para CSV
+  let rows=[];
+  if(tipo==='inventario'){exportInvCSV();return;}
+  // Re-fetch para CSV
+  let q=SB.from('entregas').select('fecha,tipo_validacion,firma_data,formulario_url,trabajadores(nombre,apellido,rut,cargo),detalle_entregas(cantidad,epp_nombre,epp_id)').order('fecha',{ascending:false}).limit(1000);
+  if(tipo==='trabajador'){const trId=document.getElementById('rTrSel').value;if(trId)q=q.eq('trabajador_id',trId);}
+  const{data}=await q;rows=data||[];
+  if(tipo==='epp'){const eppId=document.getElementById('rEppSel').value;if(eppId)rows=rows.filter(e=>e.detalle_entregas.some(d=>d.epp_id===eppId));}
+  let c='Fecha,Hora,Trabajador,RUT,Cargo,EPP,Cantidad,Validación,Firma,Doc.Físico\n';
+  rows.forEach(e=>{const d=new Date(e.fecha);e.detalle_entregas.forEach(det=>{c+=`"${d.toLocaleDateString('es-CL')}","${d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}","${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}","${e.trabajadores?.rut||''}","${e.trabajadores?.cargo||''}","${det.epp_nombre}","${det.cantidad}","${e.tipo_validacion}","${e.firma_data?'Sí':'No'}","${e.formulario_url?'Sí':'No'}"\n`;});});
+  dlCSV(c,'reporte_'+tipo+'.csv');
+}
+
+function buildEntregasHTML(f,titulo){
+  return `<div style="font-family:Arial;"><div style="text-align:center;border-bottom:3px solid #F0B429;padding-bottom:12px;margin-bottom:16px;"><h1 style="font-size:18px;">${titulo}</h1><div style="font-size:11px;color:#666;">Generado: ${new Date().toLocaleDateString('es-CL')} · ${f.length} registros</div></div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#F0B429;"><th style="padding:6px;border:1px solid #ddd;">Fecha</th><th style="padding:6px;border:1px solid #ddd;">Trabajador</th><th style="padding:6px;border:1px solid #ddd;">RUT</th><th style="padding:6px;border:1px solid #ddd;">Cargo</th><th style="padding:6px;border:1px solid #ddd;">EPP</th><th style="padding:6px;border:1px solid #ddd;">Cant.</th><th style="padding:6px;border:1px solid #ddd;">Val.</th><th style="padding:6px;border:1px solid #ddd;">Firma</th></tr></thead>
+  <tbody>${f.map(e=>`<tr><td style="padding:5px;border:1px solid #eee;white-space:nowrap;">${fmtF(e.fecha)}</td><td style="padding:5px;border:1px solid #eee;"><strong>${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}</strong></td><td style="padding:5px;border:1px solid #eee;font-size:10px;">${e.trabajadores?.rut||'—'}</td><td style="padding:5px;border:1px solid #eee;font-size:10px;">${e.trabajadores?.cargo||'—'}</td><td style="padding:5px;border:1px solid #eee;">${e.detalle_entregas.map(d=>`${d.epp_nombre} ×${d.cantidad}`).join(', ')}</td><td style="padding:5px;border:1px solid #eee;text-align:center;">${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td style="padding:5px;border:1px solid #eee;">${e.tipo_validacion==='firma'?'Firma':'PIN'}</td><td style="padding:5px;border:1px solid #eee;">${e.firma_data?`<img src="${e.firma_data}" style="height:28px;border:1px solid #ccc;">`:'—'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function buildInvHTML(data){
+  return `<div style="font-family:Arial;"><div style="text-align:center;border-bottom:3px solid #F0B429;padding-bottom:12px;margin-bottom:16px;"><h1 style="font-size:18px;">INVENTARIO EPP</h1><div style="font-size:11px;color:#666;">${new Date().toLocaleDateString('es-CL')}</div></div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr style="background:#F0B429;"><th style="padding:6px;border:1px solid #ddd;">EPP</th><th style="padding:6px;border:1px solid #ddd;">Cat.</th><th style="padding:6px;border:1px solid #ddd;">Stock</th><th style="padding:6px;border:1px solid #ddd;">Mín.</th><th style="padding:6px;border:1px solid #ddd;">Unidad</th><th style="padding:6px;border:1px solid #ddd;">Estado</th></tr></thead>
+  <tbody>${data.map(e=>{const st=e.stock<=0?'AGOTADO':e.stock<=e.stock_minimo?'Bajo':'OK';const c=e.stock<=0?'#E53935':e.stock<=e.stock_minimo?'#F0B429':'#34D399';return `<tr><td style="padding:5px;border:1px solid #eee;"><strong>${e.nombre}</strong></td><td style="padding:5px;border:1px solid #eee;">${e.categoria}</td><td style="padding:5px;border:1px solid #eee;text-align:center;font-weight:700;">${e.stock}</td><td style="padding:5px;border:1px solid #eee;text-align:center;">${e.stock_minimo}</td><td style="padding:5px;border:1px solid #eee;">${e.unidad}</td><td style="padding:5px;border:1px solid #eee;color:${c};font-weight:700;">${st}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+
+// ════════════════════════════════════════
+// ADMIN
+// ════════════════════════════════════════
+async function cargarUsuarios(){
+  const{data}=await SB.from('perfiles').select('*').order('nombre');
+  const tb=document.getElementById('usersTb');if(!tb)return;
+  tb.innerHTML=(data||[]).length?(data||[]).map(u=>`<tr><td><strong>${u.nombre}</strong></td><td style="font-size:12px;">${u.email}</td><td><span class="badge ${u.rol==='admin'?'by':u.rol==='supervisor'?'ba':'bg'}">${u.rol}</span></td><td><span class="badge ${u.activo?'bv':'br'}">${u.activo?'Activo':'Inactivo'}</span></td><td>${u.id!==YO?.id?`<button class="btn dan sm" onclick="toggleUser('${u.id}',${u.activo})">${u.activo?'Desactivar':'Activar'}</button>`:'<span class="badge bg">Tú</span>'}</td></tr>`).join(''):`<tr><td colspan="5" class="vacio">Sin usuarios</td></tr>`;
+}
+async function createUser(){
+  if(!isAdmin()){toast('Solo admin','err');return;}
+  const id=document.getElementById('uId').value.trim(),nom=document.getElementById('uNom').value.trim(),email=document.getElementById('uEmail').value.trim(),rol=document.getElementById('uRol').value;
+  if(!id||!nom||!email){toast('Completa todos los campos','err');return;}
+  const{error}=await SB.from('perfiles').insert({id,nombre:nom,email,rol,activo:true});
+  if(error){toast(error.message,'err');return;}
+  toast('Usuario registrado','ok');['uId','uNom','uEmail'].forEach(x=>document.getElementById(x).value='');cargarUsuarios();
+}
+async function toggleUser(id,activo){await SB.from('perfiles').update({activo:!activo}).eq('id',id);toast(activo?'Desactivado':'Activado','ok');cargarUsuarios();}
+</script>
+</body>
+</html>
