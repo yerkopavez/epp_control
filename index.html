@@ -385,13 +385,13 @@ tbody tr:hover td{background:rgba(255,255,255,.02);}
               <span>② EPP</span>
               <button class="ico-btn" onclick="abrirModalEPP()" title="Agregar nuevo">➕</button>
             </div>
-            <input type="text" id="bEpp" placeholder="Buscar EPP..." oninput="filtrarEPP()" style="margin-bottom:8px;">
-            <div id="eppFrecuentesWrap" style="margin-bottom:8px;">
-              <div style="font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Frecuentes</div>
+            <input type="text" id="bEpp" placeholder="Buscar EPP..." oninput="buscarEPP()" style="margin-bottom:8px;">
+            <div id="resEpp" style="max-height:160px;overflow-y:auto;"></div>
+            <div id="eppFrecuentesWrap">
+              <div style="font-size:10px;color:var(--tm);text-transform:uppercase;letter-spacing:1px;margin:8px 0 5px;">Frecuentes</div>
               <div id="eppFrecuentes" class="recientes"></div>
             </div>
-            <div id="eChips" class="chips"></div>
-            <div id="eRes" style="margin-top:8px;font-size:12px;color:var(--tm);">Ningún EPP seleccionado</div>
+            <div id="eRes" style="margin-top:10px;font-size:12px;color:var(--tm);">Ningún EPP seleccionado</div>
           </div>
         </div>
         <div class="card">
@@ -1194,50 +1194,104 @@ async function guardarTrRapido(){
 // ════════════════════════════════════════
 async function cargarEPPFrecuentes(){
   try{
-    const{data}=await SB.from('detalle_entregas').select('epp_nombre,epp_id').limit(500);
-    const cnt={};(data||[]).forEach(d=>{if(!cnt[d.epp_id])cnt[d.epp_id]={nombre:d.epp_nombre,c:0};cnt[d.epp_id].c++;});
-    EPP_FRECUENTES=Object.entries(cnt).sort((a,b)=>b[1].c-a[1].c).slice(0,6).map(([id,v])=>({id,nombre:v.nombre}));
+    const{data}=await SB.from('detalle_entregas').select('epp_id,epp_nombre').limit(1000);
+    const cnt={};
+    (data||[]).forEach(d=>{
+      if(!d.epp_id)return;
+      if(!cnt[d.epp_id])cnt[d.epp_id]={nombre:d.epp_nombre,c:0};
+      cnt[d.epp_id].c++;
+    });
+    EPP_FRECUENTES=Object.entries(cnt)
+      .sort((a,b)=>b[1].c-a[1].c)
+      .slice(0,10)
+      .map(([id,v])=>({id,nombre:v.nombre}));
     renderEPPFrecuentes();
-  }catch{}
+  }catch(e){console.log('frecuentes error',e);}
 }
+
 function renderEPPFrecuentes(){
   const el=document.getElementById('eppFrecuentes');if(!el)return;
-  if(!EPP_FRECUENTES.length){document.getElementById('eppFrecuentesWrap').style.display='none';return;}
+  if(!EPP_FRECUENTES.length){
+    document.getElementById('eppFrecuentesWrap').style.display='none';return;
+  }
+  document.getElementById('eppFrecuentesWrap').style.display='block';
   el.innerHTML=EPP_FRECUENTES.map(f=>{
-    const epp=EPPS.find(x=>x.id===f.id||x.nombre===f.nombre);
+    const epp=EPPS.find(x=>x.id===f.id);
     const ag=epp&&epp.stock<=0;
     const sc=!epp?'':epp.stock<=0?'color:var(--ro)':epp.stock<=epp.stock_minimo?'color:var(--am)':'color:var(--ve)';
-    return `<div class="rec-chip" onclick="${ag?'toast(\'Sin stock\',\'warn\')':epp?`addEPP('${epp.id}')`:''}" style="${ag?'opacity:.5;':''}">📦 ${f.nombre} ${epp?`<span style="${sc};font-size:10px;">${epp.stock<=0?'✗':epp.stock}</span>`:''}`;
-  }).join('');
-}
-function filtrarEPP(){const q=document.getElementById('bEpp').value.toLowerCase();renderEPPChips(q);}
-function renderEPPChips(filtro=''){
-  const el=document.getElementById('eChips');if(!el)return;
-  const lista=filtro?EPPS.filter(e=>e.nombre.toLowerCase().includes(filtro)):EPPS;
-  el.innerHTML=lista.map(e=>{
-    const s=EPPSEL[e.id]||0,ag=e.stock<=0;
-    const sc=ag?'color:var(--ro)':e.stock<=e.stock_minimo?'color:var(--am)':'color:var(--ve)';
-    return `<div class="chip ${s>0?'sel':''}" style="${ag?'opacity:.5;':''}">
-      ${e.nombre} <span style="${sc};font-size:10px;" title="Stock: ${e.stock} ${e.unidad}">·${ag?'✗':e.stock}</span>
-      ${s>0?`<span class="qty">${s}</span>`:''}
-      ${!ag&&s===0?`<button class="cib" data-action="add" data-id="${e.id}">+</button>`:''}
-      ${s>0?`<button class="cib" data-action="sub" data-id="${e.id}">−</button><button class="cib" data-action="add" data-id="${e.id}">+</button>`:''}
+    return `<div class="rec-chip" onclick="${ag?'toast(\'Sin stock\',\'warn\')':epp?`selEPP('${epp.id}')`:''}" style="${ag?'opacity:.5;':''}">
+      📦 ${f.nombre}${epp?` <span style="${sc};font-size:10px;">(${epp.stock<=0?'sin stock':epp.stock})</span>`:''}
     </div>`;
   }).join('');
-  el.onclick=ev=>{const btn=ev.target.closest('[data-action]');if(!btn)return;const{action,id}=btn.dataset;if(action==='add')addEPP(id);else subEPP(id);};
+}
+
+function buscarEPP(){
+  const q=document.getElementById('bEpp').value.toLowerCase().trim();
+  const el=document.getElementById('resEpp');
+  if(!q){el.innerHTML='';return;}
+  const found=EPPS.filter(e=>e.nombre.toLowerCase().includes(q));
+  if(!found.length){el.innerHTML='<p style="color:var(--tm);font-size:13px;padding:7px;">Sin resultados</p>';return;}
+  el.innerHTML=found.map(e=>{
+    const ag=e.stock<=0;
+    const sc=ag?'color:var(--ro)':e.stock<=e.stock_minimo?'color:var(--am)':'color:var(--ve)';
+    return `<div onclick="${ag?'toast(\'Sin stock\',\'warn\')':`selEPP('${e.id}')`}"
+      style="padding:8px 11px;cursor:pointer;border-radius:6px;margin-bottom:3px;background:var(--s3);border:1px solid var(--brd);${ag?'opacity:.5;':''}"
+      onmouseenter="this.style.borderColor='var(--am)'" onmouseleave="this.style.borderColor='var(--brd)'">
+      <div style="font-weight:600;color:var(--wh);">${e.nombre}</div>
+      <div style="font-size:11px;color:var(--tm);">${e.categoria} · <span style="${sc}">${ag?'Sin stock':e.stock+' '+e.unidad+' disponibles'}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function selEPP(id){
+  const e=EPPS.find(x=>x.id===id);if(!e)return;
+  // Limpiar búsqueda
+  document.getElementById('bEpp').value='';
+  document.getElementById('resEpp').innerHTML='';
+  // Agregar al seleccionado
+  addEPP(id);
+  updEppRes();
+}
+
+function filtrarEPP(){buscarEPP();} // compatibilidad
+
+function addEPP(id){
+  const e=EPPS.find(x=>x.id===id);if(!e)return;
+  const a=EPPSEL[id]||0;
+  if(a>=e.stock){toast('Sin stock disponible','warn');return;}
+  EPPSEL[id]=a+1;
+  updEppRes();
+}
+function subEPP(id){
+  if(!EPPSEL[id])return;
+  EPPSEL[id]--;
+  if(!EPPSEL[id])delete EPPSEL[id];
+  updEppRes();
+}
+function updEppRes(){
   const er=document.getElementById('eRes');if(!er)return;
   const ids=Object.keys(EPPSEL);
-  er.innerHTML=ids.length?'<strong style="color:var(--am)">Sel:</strong> '+ids.map(id=>`${EPPS.find(x=>x.id===id)?.nombre} ×${EPPSEL[id]}`).join(' · '):'Ningún EPP seleccionado';
+  if(!ids.length){er.innerHTML='Ningún EPP seleccionado';return;}
+  er.innerHTML='<strong style="color:var(--am);">Seleccionados:</strong><br>'+ids.map(id=>{
+    const e=EPPS.find(x=>x.id===id);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:var(--s3);border-radius:6px;border:1px solid rgba(240,180,41,.3);">
+      <span style="flex:1;font-size:13px;color:var(--bl);">${e?.nombre||'—'}</span>
+      <button onclick="subEPP('${id}')" style="background:none;border:none;color:var(--tm);cursor:pointer;font-size:16px;padding:0 4px;">−</button>
+      <span style="font-family:var(--mono);font-size:14px;color:var(--am);min-width:22px;text-align:center;">${EPPSEL[id]}</span>
+      <button onclick="addEPP('${id}')" style="background:none;border:none;color:var(--am);cursor:pointer;font-size:16px;padding:0 4px;">+</button>
+      <button onclick="delete EPPSEL['${id}'];updEppRes()" style="background:none;border:none;color:var(--ro);cursor:pointer;font-size:13px;padding:0 4px;">✕</button>
+    </div>`;
+  }).join('');
 }
-function addEPP(id){const e=EPPS.find(x=>x.id===id);if(!e)return;const a=EPPSEL[id]||0;if(a>=e.stock){toast('Sin stock','warn');return;}EPPSEL[id]=a+1;renderEPPChips(document.getElementById('bEpp')?.value||'');}
-function subEPP(id){if(!EPPSEL[id])return;EPPSEL[id]--;if(!EPPSEL[id])delete EPPSEL[id];renderEPPChips(document.getElementById('bEpp')?.value||'');}
+
 function abrirModalEPP(){document.getElementById('moAddEPP').classList.add('abierto');}
 async function guardarEPPRapido(){
   const nom=document.getElementById('aeNom').value.trim();if(!nom){toast('Nombre requerido','err');return;}
   const{error}=await SB.from('epps').insert({nombre:nom,categoria:document.getElementById('aeCat').value,stock:parseInt(document.getElementById('aeSt').value)||0,stock_minimo:parseInt(document.getElementById('aeMin').value)||5,unidad:document.getElementById('aeUn').value.trim()||'unidad',updated_at:new Date().toISOString()});
   if(error){toast(error.message,'err');return;}
-  toast('EPP agregado','ok');closeM('moAddEPP');['aeNom','aeSt','aeMin','aeUn'].forEach(id=>document.getElementById(id).value='');
-  await cargarEPPs();await cargarFiltros();
+  toast('EPP agregado','ok');closeM('moAddEPP');
+  ['aeNom','aeSt','aeMin','aeUn'].forEach(id=>document.getElementById(id).value='');
+  await cargarEPPs();await cargarFiltros();await cargarEPPFrecuentes();
 }
 
 // ════════════════════════════════════════
@@ -1276,8 +1330,9 @@ function resetEnt(){
   CURTR=null;EPPSEL={};SIGDATA=null;PINVAL='';ARCHIVO=null;
   document.getElementById('bTr').value='';document.getElementById('resTr').innerHTML='';
   document.getElementById('trSelBox').style.display='none';document.getElementById('trRecientesWrap').style.display='block';
+  document.getElementById('bEpp').value='';document.getElementById('resEpp').innerHTML='';
   clearSig();pclr();clearFile();document.getElementById('eObs').value='';
-  renderEPPChips();renderTrRecientes();
+  updEppRes();renderTrRecientes();
 }
 
 // ════════════════════════════════════════
