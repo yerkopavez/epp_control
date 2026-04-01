@@ -992,7 +992,7 @@ function renderVistaTr(f){
 // ════════════════════════════════════════
 async function cargarEPPs(){
   const{data}=await SB.from('epps').select('*').order('nombre');
-  EPPS=data||[];renderInv();renderInvStats();renderEPPChips();
+  EPPS=data||[];renderInv();renderInvStats();renderEPPFrecuentes();
 }
 function renderInvStats(){
   const tot=EPPS.reduce((a,e)=>a+e.stock,0),low=EPPS.filter(e=>e.stock<=e.stock_minimo&&e.stock>0).length,ag=EPPS.filter(e=>e.stock<=0).length;
@@ -1375,18 +1375,47 @@ async function renderHist(){
   const des=document.getElementById('hDes').value;
   const has=document.getElementById('hHas').value;
 
-  // Query base SIN filtro de fecha por defecto para no perder registros
-  let q=SB.from('entregas')
-    .select('id,fecha,tipo_validacion,firma_data,formulario_url,observaciones,trabajador_id,trabajadores(nombre,apellido,rut),perfiles(nombre),detalle_entregas(cantidad,epp_nombre,epp_id)')
+  // Query en dos pasos para evitar problemas de join en PostgREST
+  let qEnt=SB.from('entregas')
+    .select('id,fecha,tipo_validacion,firma_data,formulario_url,observaciones,trabajador_id')
     .order('fecha',{ascending:false})
     .limit(500);
 
-  if(trId)q=q.eq('trabajador_id',trId);
-  if(des)q=q.gte('fecha',des+'T00:00:00');
-  if(has)q=q.lte('fecha',has+'T23:59:59');
+  if(trId)qEnt=qEnt.eq('trabajador_id',trId);
+  if(des)qEnt=qEnt.gte('fecha',des+'T00:00:00');
+  if(has)qEnt=qEnt.lte('fecha',has+'T23:59:59');
 
-  const{data,error}=await q;
-  if(error){toast('Error cargando historial: '+error.message,'err');return;}
+  const{data:entData,error:entErr}=await qEnt;
+  if(entErr){toast('Error: '+entErr.message,'err');return;}
+  if(!entData||!entData.length){
+    HISTDATA=[];
+    document.getElementById('histCnt').textContent='0 registro(s)';
+    document.getElementById('histTb').innerHTML=`<tr><td colspan="8" class="vacio">${trId?'Este trabajador no tiene entregas registradas':'Sin registros — ajusta los filtros'}</td></tr>`;
+    return;
+  }
+
+  // Obtener detalles y trabajadores en paralelo
+  const entIds=entData.map(e=>e.id);
+  const trIds=[...new Set(entData.map(e=>e.trabajador_id))];
+
+  const[{data:detData},{data:trsData}]=await Promise.all([
+    SB.from('detalle_entregas').select('entrega_id,cantidad,epp_nombre,epp_id').in('entrega_id',entIds),
+    SB.from('trabajadores').select('id,nombre,apellido,rut').in('id',trIds)
+  ]);
+
+  // Armar mapa de trabajadores y detalles
+  const trMap={};(trsData||[]).forEach(t=>trMap[t.id]=t);
+  const detMap={};(detData||[]).forEach(d=>{
+    if(!detMap[d.entrega_id])detMap[d.entrega_id]=[];
+    detMap[d.entrega_id].push(d);
+  });
+
+  // Combinar todo
+  const data=entData.map(e=>({
+    ...e,
+    trabajadores:trMap[e.trabajador_id]||null,
+    detalle_entregas:detMap[e.id]||[]
+  }));
 
   HISTDATA=data||[];
   let f=HISTDATA;
