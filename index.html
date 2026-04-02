@@ -7,6 +7,7 @@
 <script src="supabase.min.js"></script>
 <script src="chart.min.js"></script>
 <script src="qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#0A0C0F;--s1:#111318;--s2:#181C22;--s3:#1F242D;--brd:#2A3040;
@@ -976,29 +977,20 @@ async function kiEnviar(){
     }));
     const{error:de}=await SB.from('detalle_solicitudes').insert(detalles);
     if(de)throw de;
-    document.getElementById('kiSolId').textContent='ID: SOL-'+sol.id.slice(0,8).toUpperCase();
+    const solEl=document.getElementById('kiSolId');
+    if(solEl)solEl.textContent='ID: SOL-'+sol.id.slice(0,8).toUpperCase();
     kiIr(5);
-    kiIniciarCountdown();
   }catch(e){toast('Error: '+e.message,'err');}
   btn.disabled=false;btn.textContent='✔ Enviar solicitud';
-}
-
-function kiIniciarCountdown(){
-  let n=10;
-  const el=document.getElementById('kiCount');
-  if(KI_COUNT_INT)clearInterval(KI_COUNT_INT);
-  KI_COUNT_INT=setInterval(()=>{
-    n--;el.textContent=n;
-    if(n<=0){clearInterval(KI_COUNT_INT);kiReset();}
-  },1000);
 }
 
 function kiReset(){
   if(KI_COUNT_INT)clearInterval(KI_COUNT_INT);
   KI_TR=null;KI_EPP={};KI_APROBADOR=null;KI_SIG=null;KI_DRAW=false;
-  document.getElementById('kiBusc').value='';
-  document.getElementById('kiRes').innerHTML='';
-  document.getElementById('kiBtnPaso4').disabled=true;
+  const busc=document.getElementById('kiBusc');if(busc)busc.value='';
+  const res=document.getElementById('kiRes');if(res)res.innerHTML='';
+  const eppBusc=document.getElementById('kiEppBusc');if(eppBusc)eppBusc.value='';
+  const btn4=document.getElementById('kiBtnPaso4');if(btn4)btn4.disabled=true;
   kiIr(1);
 }
 
@@ -1227,89 +1219,135 @@ async function aprobarSolicitud(solId,trId){
 }
 
 async function generarComprobanteAprobacion(entregaId,tr,dets,firmaWorker,firmaSup,obs){
-  // Generar QR
-  let qrUrl='';
-  try{if(window.QRCode){const c=document.createElement('canvas');await QRCode.toCanvas(c,`EPP-${entregaId.slice(0,8).toUpperCase()}\n${tr?.nombre} ${tr?.apellido||''}\n${tr?.rut||''}`,{width:90,margin:1});qrUrl=c.toDataURL();}}catch{}
-
-  const fecha=new Date();
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Comprobante EPP</title>
-  <style>
-    body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:780px;margin:0 auto;}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #F0B429;padding-bottom:14px;margin-bottom:16px;}
-    .id-box{background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:8px 12px;text-align:center;min-width:140px;}
-    .id-code{font-family:monospace;font-size:16px;font-weight:800;letter-spacing:2px;}
-    .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px;}
-    .info label{font-weight:700;font-size:10px;text-transform:uppercase;color:#666;display:block;margin-bottom:2px;}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px;}
-    th{background:#F0B429;padding:7px 8px;border:1px solid #ddd;font-size:12px;text-align:left;}
-    td{padding:7px 8px;border:1px solid #eee;font-size:13px;}
-    .sig-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:16px;}
-    .sig-box{border:1px solid #ccc;height:80px;border-radius:4px;overflow:hidden;}
-    .sig-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;}
-    .sig-name{font-size:11px;color:#666;margin-top:5px;}
-    .footer{margin-top:16px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;}
-    .obs{background:#fffde7;border:1px solid #F0B429;border-radius:6px;padding:10px;font-size:12px;margin-bottom:14px;}
-    @media print{.no-print{display:none;}}
-  </style></head><body>
-  <div class="header">
-    <div>
-      <h1 style="font-size:19px;margin:0;">⛑ COMPROBANTE DE ENTREGA DE EPP</h1>
-      <p style="font-size:12px;color:#666;margin-top:3px;">Aprobado digitalmente por supervisor</p>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      ${qrUrl?`<img src="${qrUrl}" style="width:75px;height:75px;">`:''}
-      <div class="id-box">
-        <div style="font-size:10px;color:#666;">ID ENTREGA</div>
-        <div class="id-code">EPP-${entregaId.slice(0,8).toUpperCase()}</div>
-        <div style="font-size:10px;color:#666;margin-top:3px;">${fecha.toLocaleDateString('es-CL')}</div>
-      </div>
-    </div>
-  </div>
-  <div class="info">
-    <div><label>Trabajador</label><strong>${tr?.nombre} ${tr?.apellido||''}</strong></div>
-    <div><label>RUT</label>${tr?.rut||'—'}</div>
-    <div><label>Cargo</label>${tr?.cargo||'—'}</div>
-    <div><label>Fecha y hora</label>${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}</div>
-  </div>
-  <table>
-    <thead><tr><th>N°</th><th>EPP / Equipo de Protección Personal</th><th>Cantidad</th><th>Unidad</th></tr></thead>
-    <tbody>${dets.map((d,i)=>`<tr><td style="text-align:center;">${i+1}</td><td>${d.epp_nombre}</td><td style="text-align:center;">${d.cantidad}</td><td>${EPPS.find(x=>x.id===d.epp_id)?.unidad||'unidad'}</td></tr>`).join('')}</tbody>
-  </table>
-  ${obs?`<div class="obs">📝 <strong>Observaciones:</strong> ${obs}</div>`:''}
-  <p style="font-size:12px;margin-bottom:16px;">Declaro haber recibido los EPP detallados en conformidad y me comprometo a utilizarlos según las instrucciones de seguridad vigentes.</p>
-  <div class="sig-wrap">
-    <div>
-      <div class="sig-label">Firma del Trabajador</div>
-      <div class="sig-box">${firmaWorker?`<img src="${firmaWorker}" style="height:100%;width:100%;object-fit:contain;">`:''}</div>
-      <div class="sig-name">Nombre: ${tr?.nombre} ${tr?.apellido||''}</div>
-    </div>
-    <div>
-      <div class="sig-label">Firma Supervisor Aprobador</div>
-      <div class="sig-box">${firmaSup?`<img src="${firmaSup}" style="height:100%;width:100%;object-fit:contain;">`:''}</div>
-      <div class="sig-name">Nombre: ${PERFIL?.nombre||'—'}</div>
-    </div>
-  </div>
-  <div class="footer">EPP Control · ID: ${entregaId} · ${fecha.toLocaleString('es-CL')}</div>
-  <div class="no-print" style="text-align:center;margin-top:18px;">
-    <button onclick="window.print()" style="background:#F0B429;border:none;padding:10px 22px;font-size:14px;font-weight:700;border-radius:6px;cursor:pointer;">🖨 Imprimir</button>
-  </div>
-  <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
-  </body></html>`;
-
-  // Abrir para imprimir
-  const w=window.open('','_blank','width=820,height=720');
-  if(w){w.document.write(html);w.document.close();}
-
-  // Guardar en Supabase Storage como HTML
   try{
-    const blob=new Blob([html],{type:'text/html'});
-    const path=`comprobantes/${entregaId}.html`;
-    const{error}=await SB.storage.from('formularios').upload(path,blob,{upsert:true,contentType:'text/html'});
+    const{jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const fecha=new Date();
+    const idCorto='EPP-'+entregaId.slice(0,8).toUpperCase();
+    const W=210,M=18; // ancho A4, margen
+
+    // ── Encabezado ──
+    doc.setFillColor(240,180,41);
+    doc.rect(M,12,W-M*2,1.2,'F');
+    doc.setFontSize(16);doc.setFont('helvetica','bold');doc.setTextColor(0,0,0);
+    doc.text('COMPROBANTE DE ENTREGA DE EPP',M,22);
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+    doc.text('Aprobado digitalmente por supervisor',M,28);
+
+    // QR
+    try{
+      if(window.QRCode){
+        const c=document.createElement('canvas');
+        await QRCode.toCanvas(c,`EPP Control\nID: ${idCorto}\n${tr?.nombre} ${tr?.apellido||''}\n${tr?.rut||''}`,{width:80,margin:1});
+        doc.addImage(c.toDataURL(),'PNG',W-M-22,10,22,22);
+      }
+    }catch{}
+
+    // ID box
+    doc.setFillColor(249,249,249);doc.setDrawColor(200,200,200);
+    doc.roundedRect(W-M-46,10,22,22,2,2,'FD');
+    doc.setFontSize(7);doc.setTextColor(120,120,120);doc.text('ID ENTREGA',W-M-46+11,15.5,{align:'center'});
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(0,0,0);
+    doc.text(idCorto,W-M-46+11,20,{align:'center'});
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text(fecha.toLocaleDateString('es-CL'),W-M-46+11,25,{align:'center'});
+
+    // ── Info trabajador ──
+    let y=38;
+    doc.setFillColor(245,245,245);doc.rect(M,y,W-M*2,18,'F');
+    doc.setFontSize(8);doc.setTextColor(120,120,120);doc.setFont('helvetica','normal');
+    doc.text('TRABAJADOR',M+3,y+5);doc.text('RUT',M+90,y+5);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(0,0,0);
+    doc.text(`${tr?.nombre||''} ${tr?.apellido||''}`,M+3,y+11);
+    doc.text(tr?.rut||'—',M+90,y+11);
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text('CARGO',M+3,y+16);doc.text('FECHA Y HORA',M+90,y+16);
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);
+    // cargo en línea siguiente dentro del recuadro
+    doc.setFontSize(8);doc.setTextColor(120,120,120);
+    y+=20;
+
+    // ── Tabla EPP ──
+    doc.setFillColor(240,180,41);doc.rect(M,y,W-M*2,7,'F');
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(0,0,0);
+    doc.text('N°',M+4,y+5);
+    doc.text('EPP / Equipo de Protección Personal',M+14,y+5);
+    doc.text('Cantidad',W-M-30,y+5);
+    doc.text('Unidad',W-M-13,y+5);
+    y+=7;
+
+    dets.forEach((d,i)=>{
+      if(i%2===0)doc.setFillColor(255,255,255);else doc.setFillColor(250,250,250);
+      doc.rect(M,y,W-M*2,7,'F');
+      doc.setDrawColor(230,230,230);doc.rect(M,y,W-M*2,7,'S');
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(0,0,0);
+      doc.text(String(i+1),M+4,y+5);
+      doc.text(d.epp_nombre||'—',M+14,y+5);
+      doc.text(String(d.cantidad),W-M-27,y+5,{align:'center'});
+      doc.text(EPPS.find(x=>x.id===d.epp_id)?.unidad||'unidad',W-M-13,y+5);
+      y+=7;
+    });
+    y+=4;
+
+    // Observaciones
+    if(obs){
+      doc.setFillColor(255,253,225);doc.setDrawColor(240,180,41);
+      doc.rect(M,y,W-M*2,8,'FD');
+      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.text('Observaciones: ',M+3,y+5);
+      doc.setFont('helvetica','normal');doc.text(obs,M+32,y+5);
+      y+=12;
+    }
+
+    // Declaración
+    doc.setFontSize(8);doc.setTextColor(60,60,60);doc.setFont('helvetica','normal');
+    doc.text('Declaro haber recibido los EPP detallados en conformidad y me comprometo a utilizarlos según las instrucciones de seguridad vigentes.',M,y,{maxWidth:W-M*2});
+    y+=8;
+
+    // ── Firmas ──
+    const sigW=(W-M*2-10)/2, sigH=28;
+    // Trabajador
+    doc.setDrawColor(200,200,200);doc.rect(M,y,sigW,sigH,'S');
+    doc.setFontSize(7);doc.setTextColor(100,100,100);doc.setFont('helvetica','bold');
+    doc.text('FIRMA DEL TRABAJADOR',M+2,y+4);
+    if(firmaWorker){
+      try{doc.addImage(firmaWorker,'PNG',M+2,y+5,sigW-4,sigH-10);}catch{}
+    }
+    doc.setFontSize(8);doc.setTextColor(0,0,0);doc.setFont('helvetica','normal');
+    doc.text(`Nombre: ${tr?.nombre||''} ${tr?.apellido||''}`,M+2,y+sigH-2);
+
+    // Supervisor
+    const x2=M+sigW+10;
+    doc.rect(x2,y,sigW,sigH,'S');
+    doc.setFontSize(7);doc.setTextColor(100,100,100);doc.setFont('helvetica','bold');
+    doc.text('FIRMA SUPERVISOR APROBADOR',x2+2,y+4);
+    if(firmaSup){
+      try{doc.addImage(firmaSup,'PNG',x2+2,y+5,sigW-4,sigH-10);}catch{}
+    }
+    doc.setFontSize(8);doc.setTextColor(0,0,0);doc.setFont('helvetica','normal');
+    doc.text(`Nombre: ${PERFIL?.nombre||'—'}`,x2+2,y+sigH-2);
+    y+=sigH+4;
+
+    // Footer
+    doc.setFontSize(7);doc.setTextColor(150,150,150);
+    doc.text(`EPP Control · ID: ${entregaId} · ${fecha.toLocaleString('es-CL')}`,W/2,y+4,{align:'center'});
+
+    // ── Guardar PDF en Supabase Storage ──
+    const pdfBlob=doc.output('blob');
+    const path=`comprobantes/${entregaId}.pdf`;
+    const{error}=await SB.storage.from('formularios').upload(path,pdfBlob,{upsert:true,contentType:'application/pdf'});
     if(!error){
       const{data:u}=SB.storage.from('formularios').getPublicUrl(path);
       await SB.from('entregas').update({formulario_url:u.publicUrl}).eq('id',entregaId);
+      toast('✔ Comprobante PDF guardado','ok');
+      // Mostrar sin imprimir
+      window.open(u.publicUrl,'_blank');
+    }else{
+      toast('Error guardando PDF: '+error.message,'err');
     }
-  }catch{}
+  }catch(e){
+    toast('Error generando PDF: '+e.message,'err');
+    console.error(e);
+  }
 }
 
 async function rechazarSolicitud(solId){
