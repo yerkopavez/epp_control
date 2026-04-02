@@ -1219,6 +1219,10 @@ async function aprobarSolicitud(solId,trId){
 }
 
 async function generarComprobanteAprobacion(entregaId,tr,dets,firmaWorker,firmaSup,obs){
+  // Esperar que jsPDF esté disponible
+  let intentos=0;
+  while(!window.jspdf&&intentos<20){await new Promise(r=>setTimeout(r,200));intentos++;}
+  if(!window.jspdf){toast('Error: jsPDF no cargó. Verifica conexión.','err');return;}
   try{
     const{jsPDF}=window.jspdf;
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -1685,7 +1689,38 @@ async function renderHist(){
 }
 function clearHist(){['hTr','hEpp'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});['hDes','hHas'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderHist();}
 function verFirma(id){const e=HISTDATA.find(x=>x.id===id);if(!e?.firma_data)return;document.getElementById('moImgSrc').src=e.firma_data;document.getElementById('moImg').classList.add('abierto');}
-function verDoc(url){window.open(url,'_blank');}
+async function verDoc(url){
+  // Si es PDF, abrirlo directo
+  if(url.endsWith('.pdf')||url.includes('.pdf?')){
+    window.open(url,'_blank');
+    return;
+  }
+  // Si es HTML antiguo, buscar la entrega y regenerar como PDF
+  if(url.endsWith('.html')||url.includes('.html')){
+    toast('Documento antiguo — regenerando como PDF...','warn');
+    // Extraer entrega_id de la URL
+    const match=url.match(/comprobantes\/([a-f0-9-]+)\.html/);
+    if(match){
+      const entregaId=match[1];
+      await regenerarComprobante(entregaId);
+    }else{
+      window.open(url,'_blank');
+    }
+    return;
+  }
+  window.open(url,'_blank');
+}
+
+async function regenerarComprobante(entregaId){
+  try{
+    // Buscar datos de la entrega
+    const{data:ent}=await SB.from('entregas').select('trabajador_id,observaciones,firma_data').eq('id',entregaId).single();
+    if(!ent){toast('Entrega no encontrada','err');return;}
+    const{data:tr}=await SB.from('trabajadores').select('nombre,apellido,rut,cargo').eq('id',ent.trabajador_id).single();
+    const{data:dets}=await SB.from('detalle_entregas').select('epp_id,epp_nombre,cantidad').eq('entrega_id',entregaId);
+    await generarComprobanteAprobacion(entregaId,tr,dets||[],ent.firma_data,PERFIL?.firma_data||null,ent.observaciones);
+  }catch(e){toast('Error: '+e.message,'err');}
+}
 function verEntrega(id){const e=HISTDATA.find(x=>x.id===id);if(!e)return;const tr=e.trabajadores;document.getElementById('moDetTit').textContent=`${tr?.nombre||'—'} ${tr?.apellido||''} — ${fmtF(e.fecha)}`;document.getElementById('moDetCont').innerHTML=`<div style="margin-bottom:12px;font-size:13px;color:var(--tm);">RUT: ${tr?.rut||'—'} · Val.: <span class="badge ${e.tipo_validacion==='firma'?'bv':'ba'}">${e.tipo_validacion==='firma'?'Firma digital':'PIN'}</span>${e.observaciones?`<div style="margin-top:5px;">Obs: ${e.observaciones}</div>`:''}</div><div class="twrap" style="margin-bottom:12px;"><table><thead><tr><th>EPP</th><th>Cant.</th></tr></thead><tbody>${e.detalle_entregas.map(d=>`<tr><td>${d.epp_nombre}</td><td>${d.cantidad}</td></tr>`).join('')}</tbody></table></div>${e.firma_data?`<div style="margin-bottom:10px;"><label style="display:block;margin-bottom:5px;">Firma:</label><img src="${e.firma_data}" style="max-height:75px;border:1px solid var(--brd);border-radius:6px;background:#fff;"></div>`:''}${e.formulario_url?`<button class="btn sec sm" onclick="verDoc('${e.formulario_url}')">📎 Ver doc</button>`:''}`;document.getElementById('moDet').classList.add('abierto');}
 function exportHistCSV(){let c='Fecha,Hora,Trabajador,RUT,EPP,Cantidad,Validación,Firma\n';HISTDATA.forEach(e=>{const d=new Date(e.fecha);e.detalle_entregas.forEach(det=>{c+=`"${d.toLocaleDateString('es-CL')}","${d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}","${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}","${e.trabajadores?.rut||''}","${det.epp_nombre}","${det.cantidad}","${e.tipo_validacion}","${e.firma_data?'Sí':'No'}"\n`;});});dlCSV(c,'historial.csv');}
 function printHistReport(){if(!HISTDATA.length){toast('Sin datos','warn');return;}const w=window.open('','_blank');w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Historial</title><style>body{font-family:Arial;padding:24px;}h1{font-size:18px;border-bottom:2px solid #F0B429;padding-bottom:8px;margin-bottom:14px;}table{width:100%;border-collapse:collapse;font-size:11px;}th{background:#F0B429;padding:6px;border:1px solid #ddd;}td{padding:6px;border:1px solid #eee;}img{height:28px;border:1px solid #ccc;}</style></head><body><h1>Historial EPP — ${new Date().toLocaleDateString('es-CL')} · ${HISTDATA.length} registros</h1><table><thead><tr><th>Fecha</th><th>Trabajador</th><th>RUT</th><th>EPP</th><th>Cant.</th><th>Val.</th><th>Firma</th></tr></thead><tbody>${HISTDATA.map(e=>`<tr><td>${fmtF(e.fecha)}</td><td>${e.trabajadores?.nombre||''} ${e.trabajadores?.apellido||''}</td><td>${e.trabajadores?.rut||''}</td><td>${e.detalle_entregas.map(d=>d.epp_nombre+' ×'+d.cantidad).join(', ')}</td><td>${e.detalle_entregas.reduce((a,d)=>a+d.cantidad,0)}</td><td>${e.tipo_validacion}</td><td>${e.firma_data?`<img src="${e.firma_data}">`:'—'}</td></tr>`).join('')}</tbody></table><script>window.onload=()=>window.print();<\/script></body></html>`);w.document.close();}
