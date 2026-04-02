@@ -66,7 +66,7 @@ html,body{height:100%;background:var(--bg);color:var(--bl);font-family:var(--f);
 .ki-aprobador-av{width:42px;height:42px;border-radius:50%;background:var(--am);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--bg);flex-shrink:0;}
 .ki-aprobador-nom{font-size:18px;font-weight:700;color:var(--wh);}
 .ki-aprobador-rol{font-size:12px;color:var(--tm);}
-.ki-fw{border:3px dashed var(--brd);border-radius:12px;background:#fff;position:relative;height:220px;overflow:hidden;cursor:crosshair;margin-bottom:16px;}
+.ki-fw{border:3px dashed var(--brd);border-radius:12px;background:#fff;position:relative;height:320px;max-width:480px;overflow:hidden;cursor:crosshair;margin:0 auto 16px;}
 .ki-fw canvas{display:block;width:100%;height:100%;}
 .ki-fw-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:18px;pointer-events:none;}
 .ki-fw-ph.h{display:none;}
@@ -314,13 +314,18 @@ tbody tr:hover td{background:rgba(255,255,255,.02);}
     <!-- PASO 2: Seleccionar EPP -->
     <div class="ki-step" id="ks2">
       <div class="ki-title">📦 Selecciona los EPP</div>
-      <div class="ki-sub">Elige los equipos que necesitas</div>
-      <div id="kiTrBox" class="ki-sel-box" style="margin-bottom:20px;"></div>
+      <div id="kiTrBox" class="ki-sel-box" style="margin-bottom:16px;"></div>
+      <!-- Barra búsqueda + botón continuar ARRIBA -->
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">
+        <input type="text" class="ki-search" id="kiEppBusc" placeholder="Buscar EPP..." oninput="kiFiltrarEPP()" style="flex:1;margin-bottom:0;">
+        <button class="ki-btn pri" onclick="kiIr(3)" id="kiBtnPaso3" style="white-space:nowrap;flex-shrink:0;">Continuar →</button>
+      </div>
+      <!-- Resumen seleccionados -->
+      <div id="kiSelRes" style="margin-bottom:14px;"></div>
+      <!-- Grid de EPP -->
       <div id="kiEppGrid" class="ki-epp-grid"></div>
-      <div id="kiSelRes" style="margin-bottom:16px;"></div>
-      <div class="ki-brow">
+      <div class="ki-brow" style="margin-top:16px;">
         <button class="ki-btn sec" onclick="kiIr(1)">← Volver</button>
-        <button class="ki-btn pri" onclick="kiIr(3)" id="kiBtnPaso3">Continuar →</button>
       </div>
     </div>
 
@@ -353,11 +358,9 @@ tbody tr:hover td{background:rgba(255,255,255,.02);}
       <div class="ki-confirm">
         <div class="ki-confirm-ic">✅</div>
         <div class="ki-confirm-tit">¡Solicitud enviada!</div>
-        <div class="ki-confirm-sub">Tu supervisor recibirá la notificación y entregará el EPP una vez aprobado.</div>
-        <div id="kiSolId" style="font-family:var(--mono);font-size:16px;color:var(--tm);margin-bottom:24px;"></div>
-        <div class="ki-countdown" id="kiCount">10</div>
-        <div style="font-size:14px;color:var(--tm);margin-top:8px;">segundos para nueva solicitud</div>
-        <button class="ki-btn pri" onclick="kiReset()" style="margin-top:24px;">Nueva solicitud</button>
+        <div class="ki-confirm-sub">Tu supervisor recibirá la notificación y te entregará los EPP una vez aprobado.</div>
+        <div id="kiSolId" style="font-family:var(--mono);font-size:16px;color:var(--tm);margin-bottom:32px;"></div>
+        <button class="ki-btn pri" onclick="kiReset()" style="margin-top:8px;font-size:20px;padding:18px 40px;">Nueva solicitud</button>
       </div>
     </div>
 
@@ -830,7 +833,7 @@ function kiIr(paso){
   document.querySelectorAll('.ki-step').forEach(s=>s.classList.remove('on'));
   document.getElementById('ks'+paso).classList.add('on');
   if(paso===4){kiMostrarResumen();setTimeout(()=>kiInitFirma(),200);}
-  if(paso===2){kiRenderEPPs();}
+  if(paso===2){const inp=document.getElementById('kiEppBusc');if(inp)inp.value='';kiRenderEPPs();}
   if(paso===3){kiRenderAprobadores();}
 }
 
@@ -855,49 +858,59 @@ function kiSelTr(t){
 }
 
 // PASO 2 — Seleccionar EPP
-function kiRenderEPPs(){
+function kiFiltrarEPP(){
+  const q=document.getElementById('kiEppBusc')?.value.toLowerCase().trim()||'';
+  kiRenderEPPs(q);
+}
+
+function kiRenderEPPs(filtro=''){
+  const lista=filtro?EPPS.filter(e=>e.nombre.toLowerCase().includes(filtro)):EPPS;
   const el=document.getElementById('kiEppGrid');
-  el.innerHTML=EPPS.map(e=>{
+  el.innerHTML=lista.map(e=>{
     const s=KI_EPP[e.id]||0;
-    const sc=e.stock<=e.stock_minimo?'color:var(--am)':'color:var(--ve)';
     return `<div class="ki-epp-card ${s>0?'sel':''}" onclick="kiToggleEPP('${e.id}')">
       ${s>0?`<div class="ki-qty">${s}</div>`:''}
       <div class="ki-epp-nom">${e.nombre}</div>
       <div class="ki-epp-cat">${e.categoria}</div>
-      <div class="ki-epp-stock" style="${sc}">Stock: ${e.stock} ${e.unidad}</div>
       ${s>0?`<div class="ki-qty-ctrl" onclick="event.stopPropagation()">
         <button class="ki-qty-btn" onclick="kiAdjEPP('${e.id}',-1)">−</button>
-        <span style="font-size:18px;font-weight:700;color:var(--am);">${s}</span>
+        <span style="font-size:20px;font-weight:800;color:var(--am);min-width:28px;text-align:center;">${s}</span>
         <button class="ki-qty-btn" onclick="kiAdjEPP('${e.id}',1)">+</button>
-      </div>`:''}
+      </div>`:'<div style="font-size:12px;color:var(--tm);margin-top:6px;">Toca para agregar</div>'}
     </div>`;
   }).join('');
 
+  // Resumen seleccionados
   const ids=Object.keys(KI_EPP);
   const res=document.getElementById('kiSelRes');
   if(ids.length){
     res.innerHTML=`<div style="background:rgba(240,180,41,.08);border:1.5px solid rgba(240,180,41,.3);border-radius:10px;padding:14px;">
-      <div style="font-size:13px;color:var(--am);font-weight:700;margin-bottom:6px;">Seleccionados:</div>
-      ${ids.map(id=>`<div style="font-size:14px;color:var(--bl);">• ${EPPS.find(x=>x.id===id)?.nombre} ×${KI_EPP[id]}</div>`).join('')}
+      <div style="font-size:14px;color:var(--am);font-weight:700;margin-bottom:8px;">✔ Seleccionados:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${ids.map(id=>`<div style="background:var(--s2);border:1px solid var(--am);border-radius:8px;padding:7px 14px;font-size:15px;color:var(--wh);">
+          ${EPPS.find(x=>x.id===id)?.nombre} <strong style="color:var(--am);">×${KI_EPP[id]}</strong>
+        </div>`).join('')}
+      </div>
     </div>`;
-    document.getElementById('kiTrBox').innerHTML=`<div class="ki-sel-nom">${KI_TR?.nombre} ${KI_TR?.apellido||''}</div><div class="ki-sel-det">${KI_TR?.rut}${KI_TR?.cargo?' · '+KI_TR.cargo:''}</div>`;
   } else {
-    res.innerHTML='';
+    res.innerHTML='<div style="font-size:15px;color:var(--tm);padding:8px 0;">Ningún EPP seleccionado — toca una tarjeta para agregar</div>';
   }
+  document.getElementById('kiTrBox').innerHTML=`<div class="ki-sel-nom">${KI_TR?.nombre} ${KI_TR?.apellido||''}</div><div class="ki-sel-det">${KI_TR?.rut}${KI_TR?.cargo?' · '+KI_TR.cargo:''}</div>`;
 }
 
 function kiToggleEPP(id){
   if(KI_EPP[id])delete KI_EPP[id];
   else{const e=EPPS.find(x=>x.id===id);if(e&&e.stock>0)KI_EPP[id]=1;}
-  kiRenderEPPs();
+  kiRenderEPPs(document.getElementById('kiEppBusc')?.value.toLowerCase().trim()||'');
 }
 function kiAdjEPP(id,d){
   const e=EPPS.find(x=>x.id===id);if(!e)return;
   const n=(KI_EPP[id]||0)+d;
   if(n<=0)delete KI_EPP[id];
-  else if(n<=e.stock)KI_EPP[id]=n;
-  else toast('Sin stock suficiente','warn');
-  kiRenderEPPs();
+  else if(n>3){toast('Máximo 3 unidades por EPP','warn');return;}
+  else if(n>e.stock){toast('Sin stock suficiente','warn');return;}
+  else KI_EPP[id]=n;
+  kiRenderEPPs(document.getElementById('kiEppBusc')?.value.toLowerCase().trim()||'');
 }
 
 // PASO 3 — Aprobador
@@ -1096,6 +1109,9 @@ async function abrirSolicitud(solId){
   const{data:dets}=await SB.from('detalle_solicitudes').select('*').eq('solicitud_id',solId);
   const ds=dets||[];
 
+  // Ver si el supervisor ya tiene firma guardada
+  const tieneFirma=!!PERFIL?.firma_data;
+
   document.getElementById('moSolTit').textContent=`Solicitud de ${tr?.nombre} ${tr?.apellido||''}`;
   document.getElementById('moSolCont').innerHTML=`
     <div style="background:var(--s3);border-radius:var(--r);padding:14px;margin-bottom:14px;font-size:13px;">
@@ -1108,18 +1124,39 @@ async function abrirSolicitud(solId){
     </div>
     <div class="ctit">EPP Solicitado</div>
     <div class="twrap" style="margin-bottom:14px;"><table>
-      <thead><tr><th>EPP</th><th>Cantidad solicitada</th><th>Nueva cantidad</th></tr></thead>
-      <tbody>${ds.map((d,i)=>`<tr><td><strong>${d.epp_nombre}</strong></td><td>${d.cantidad}</td><td><input type="number" min="1" value="${d.cantidad}" id="sqty-${i}" data-id="${d.id}" style="width:80px;"></td></tr>`).join('')}</tbody>
+      <thead><tr><th>EPP</th><th>Cant. solicitada</th><th>Cant. a entregar</th></tr></thead>
+      <tbody>${ds.map((d,i)=>`<tr><td><strong>${d.epp_nombre}</strong></td><td style="text-align:center;">${d.cantidad}</td><td><input type="number" min="1" max="${d.cantidad}" value="${d.cantidad}" id="sqty-${i}" data-id="${d.id}" style="width:80px;"></td></tr>`).join('')}</tbody>
     </table></div>
-    ${sol.firma_data?`<div style="margin-bottom:14px;"><div class="ctit">Firma del trabajador</div><img src="${sol.firma_data}" style="max-height:90px;border:1px solid var(--brd);border-radius:var(--r);background:#fff;"></div>`:''}
-    <div class="fg" style="margin-bottom:0;">
-      <label>Observaciones del supervisor (opcional)</label>
-      <textarea id="solObs" placeholder="Ej: Se entregó con cambio de talla..." style="min-height:60px;"></textarea>
-    </div>`;
+    ${sol.firma_data?`<div style="margin-bottom:14px;"><div class="ctit">Firma del trabajador</div><img src="${sol.firma_data}" style="max-height:80px;border:1px solid var(--brd);border-radius:var(--r);background:#fff;display:block;"></div>`:''}
+    <div class="fg" style="margin-bottom:14px;">
+      <label>Observaciones (opcional)</label>
+      <textarea id="solObs" placeholder="Ej: Se entregó con cambio de talla..." style="min-height:55px;"></textarea>
+    </div>
+    ${tieneFirma?`
+      <div style="margin-bottom:4px;">
+        <div class="ctit">Tu firma (guardada)</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${PERFIL.firma_data}" style="max-height:55px;border:1px solid var(--brd);border-radius:6px;background:#fff;">
+          <button class="btn sec sm" onclick="document.getElementById('firmaSupWrap').style.display='block';this.style.display='none'">✏ Cambiar firma</button>
+        </div>
+      </div>
+      <div id="firmaSupWrap" style="display:none;margin-top:10px;">
+        <label style="display:block;margin-bottom:5px;">Nueva firma</label>
+        <div class="fw" style="height:120px;"><canvas id="sigSup"></canvas><div class="fph" id="sigSupPh">Firma aquí</div></div>
+        <div class="brow"><button class="btn sec sm" onclick="clearSigSup()">🗑 Borrar</button></div>
+      </div>`:`
+      <div id="firmaSupWrap">
+        <div class="ctit">Tu firma (se guardará para futuras aprobaciones)</div>
+        <div class="fw" style="height:130px;"><canvas id="sigSup"></canvas><div class="fph" id="sigSupPh">Firma aquí</div></div>
+        <div class="brow"><button class="btn sec sm" onclick="clearSigSup()">🗑 Borrar</button></div>
+      </div>`}`;
+
+  // Inicializar canvas firma supervisor
+  setTimeout(()=>initSigSup(),100);
 
   document.getElementById('moSolAcciones').innerHTML=`
     <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
-      <button class="btn pri" onclick="aprobarSolicitud('${solId}','${sol.trabajador_id}')">✔ Aprobar y descontar stock</button>
+      <button class="btn pri" onclick="aprobarSolicitud('${solId}','${sol.trabajador_id}')">✔ Aprobar y entregar</button>
       <div style="flex:1;"></div>
       <div style="display:flex;gap:8px;align-items:center;flex:1;">
         <input type="text" id="motivoRec" placeholder="Motivo del rechazo..." style="flex:1;">
@@ -1130,44 +1167,149 @@ async function abrirSolicitud(solId){
   document.getElementById('moSol').classList.add('abierto');
 }
 
+// Canvas firma supervisor en modal
+let SIG_SUP=null,SIG_SUP_CV=null,SIG_SUP_CX=null,SIG_SUP_DRAW=false;
+function initSigSup(){
+  const cv=document.getElementById('sigSup');if(!cv)return;
+  SIG_SUP_CV=cv;SIG_SUP_CX=cv.getContext('2d');
+  const r=cv.parentElement.getBoundingClientRect();cv.width=r.width;cv.height=r.height;
+  SIG_SUP_CX.strokeStyle='#111';SIG_SUP_CX.lineWidth=2.5;SIG_SUP_CX.lineCap='round';SIG_SUP_CX.lineJoin='round';
+  cv.onmousedown=e=>{SIG_SUP_DRAW=true;SIG_SUP_CX.beginPath();const rc=cv.getBoundingClientRect();SIG_SUP_CX.moveTo(e.clientX-rc.left,e.clientY-rc.top);};
+  cv.onmousemove=e=>{if(!SIG_SUP_DRAW)return;const rc=cv.getBoundingClientRect();document.getElementById('sigSupPh')?.classList.add('h');SIG_SUP_CX.lineTo(e.clientX-rc.left,e.clientY-rc.top);SIG_SUP_CX.stroke();};
+  cv.onmouseup=cv.onmouseleave=()=>{if(SIG_SUP_DRAW){SIG_SUP_DRAW=false;SIG_SUP=cv.toDataURL();}};
+  cv.addEventListener('touchstart',e=>{e.preventDefault();SIG_SUP_DRAW=true;SIG_SUP_CX.beginPath();const rc=cv.getBoundingClientRect();SIG_SUP_CX.moveTo(e.touches[0].clientX-rc.left,e.touches[0].clientY-rc.top);},{passive:false});
+  cv.addEventListener('touchmove',e=>{e.preventDefault();if(!SIG_SUP_DRAW)return;const rc=cv.getBoundingClientRect();document.getElementById('sigSupPh')?.classList.add('h');SIG_SUP_CX.lineTo(e.touches[0].clientX-rc.left,e.touches[0].clientY-rc.top);SIG_SUP_CX.stroke();},{passive:false});
+  cv.addEventListener('touchend',()=>{if(SIG_SUP_DRAW){SIG_SUP_DRAW=false;SIG_SUP=SIG_SUP_CV.toDataURL();}});
+}
+function clearSigSup(){if(!SIG_SUP_CV)return;SIG_SUP_CX.clearRect(0,0,SIG_SUP_CV.width,SIG_SUP_CV.height);document.getElementById('sigSupPh')?.classList.remove('h');SIG_SUP=null;}
+
 async function aprobarSolicitud(solId,trId){
+  // Determinar firma a usar
+  let firmaUsar = SIG_SUP || PERFIL?.firma_data || null;
+  if(!firmaUsar){toast('Se requiere firma del supervisor','err');return;}
+
+  // Si dibujó firma nueva, guardarla en perfil
+  if(SIG_SUP && SIG_SUP !== PERFIL?.firma_data){
+    await SB.from('perfiles').update({firma_data:SIG_SUP}).eq('id',YO.id);
+    PERFIL.firma_data=SIG_SUP;
+    firmaUsar=SIG_SUP;
+  }
+
   const obs=document.getElementById('solObs')?.value.trim();
-  // Recoger cantidades editadas
   const inputs=document.querySelectorAll('[id^="sqty-"]');
   const detallesActualizados=[];
-  inputs.forEach(inp=>{
-    detallesActualizados.push({id:inp.dataset.id,cantidad:parseInt(inp.value)||1});
-  });
+  inputs.forEach(inp=>detallesActualizados.push({id:inp.dataset.id,cantidad:parseInt(inp.value)||1}));
 
   try{
-    // Actualizar cantidades si cambiaron
     for(const d of detallesActualizados){
       await SB.from('detalle_solicitudes').update({cantidad:d.cantidad}).eq('id',d.id);
     }
-
-    // Crear entrega real
+    // Crear entrega
     const{data:ent,error:ee}=await SB.from('entregas').insert({
-      trabajador_id:trId,
-      usuario_id:YO?.id,
-      tipo_validacion:'firma',
-      firma_data:null,
-      observaciones:obs||null
+      trabajador_id:trId,usuario_id:YO?.id,tipo_validacion:'firma',
+      firma_data:null,observaciones:obs||null
     }).select().single();
     if(ee)throw ee;
-
-    // Recargar detalles actualizados
     const{data:dets}=await SB.from('detalle_solicitudes').select('epp_id,epp_nombre,cantidad').eq('solicitud_id',solId);
     const{error:de}=await SB.from('detalle_entregas').insert((dets||[]).map(d=>({entrega_id:ent.id,epp_id:d.epp_id,epp_nombre:d.epp_nombre,cantidad:d.cantidad})));
     if(de)throw de;
-
-    // Actualizar solicitud
     await SB.from('solicitudes').update({estado:'aprobada',fecha_resolucion:new Date().toISOString(),resuelto_por:YO?.id,observaciones_supervisor:obs||null,entrega_id:ent.id}).eq('id',solId);
 
-    toast('✔ Solicitud aprobada — stock descontado','ok');
-    closeM('moSol');
-    cargarSolPendientes();
-    actualizarBadgeSolicitudes();
+    // Generar y guardar comprobante
+    const{data:tr}=await SB.from('trabajadores').select('nombre,apellido,rut,cargo').eq('id',trId).single();
+    const{data:solData}=await SB.from('solicitudes').select('firma_data').eq('id',solId).single();
+    await generarComprobanteAprobacion(ent.id,tr,dets||[],solData?.firma_data,firmaUsar,obs);
+
+    toast('✔ Solicitud aprobada','ok');
+    closeM('moSol');SIG_SUP=null;
+    cargarSolPendientes();actualizarBadgeSolicitudes();
   }catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function generarComprobanteAprobacion(entregaId,tr,dets,firmaWorker,firmaSup,obs){
+  // Generar QR
+  let qrUrl='';
+  try{if(window.QRCode){const c=document.createElement('canvas');await QRCode.toCanvas(c,`EPP-${entregaId.slice(0,8).toUpperCase()}\n${tr?.nombre} ${tr?.apellido||''}\n${tr?.rut||''}`,{width:90,margin:1});qrUrl=c.toDataURL();}}catch{}
+
+  const fecha=new Date();
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Comprobante EPP</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#000;max-width:780px;margin:0 auto;}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #F0B429;padding-bottom:14px;margin-bottom:16px;}
+    .id-box{background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:8px 12px;text-align:center;min-width:140px;}
+    .id-code{font-family:monospace;font-size:16px;font-weight:800;letter-spacing:2px;}
+    .info{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px;}
+    .info label{font-weight:700;font-size:10px;text-transform:uppercase;color:#666;display:block;margin-bottom:2px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+    th{background:#F0B429;padding:7px 8px;border:1px solid #ddd;font-size:12px;text-align:left;}
+    td{padding:7px 8px;border:1px solid #eee;font-size:13px;}
+    .sig-wrap{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:16px;}
+    .sig-box{border:1px solid #ccc;height:80px;border-radius:4px;overflow:hidden;}
+    .sig-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;}
+    .sig-name{font-size:11px;color:#666;margin-top:5px;}
+    .footer{margin-top:16px;font-size:10px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:8px;}
+    .obs{background:#fffde7;border:1px solid #F0B429;border-radius:6px;padding:10px;font-size:12px;margin-bottom:14px;}
+    @media print{.no-print{display:none;}}
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1 style="font-size:19px;margin:0;">⛑ COMPROBANTE DE ENTREGA DE EPP</h1>
+      <p style="font-size:12px;color:#666;margin-top:3px;">Aprobado digitalmente por supervisor</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      ${qrUrl?`<img src="${qrUrl}" style="width:75px;height:75px;">`:''}
+      <div class="id-box">
+        <div style="font-size:10px;color:#666;">ID ENTREGA</div>
+        <div class="id-code">EPP-${entregaId.slice(0,8).toUpperCase()}</div>
+        <div style="font-size:10px;color:#666;margin-top:3px;">${fecha.toLocaleDateString('es-CL')}</div>
+      </div>
+    </div>
+  </div>
+  <div class="info">
+    <div><label>Trabajador</label><strong>${tr?.nombre} ${tr?.apellido||''}</strong></div>
+    <div><label>RUT</label>${tr?.rut||'—'}</div>
+    <div><label>Cargo</label>${tr?.cargo||'—'}</div>
+    <div><label>Fecha y hora</label>${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}</div>
+  </div>
+  <table>
+    <thead><tr><th>N°</th><th>EPP / Equipo de Protección Personal</th><th>Cantidad</th><th>Unidad</th></tr></thead>
+    <tbody>${dets.map((d,i)=>`<tr><td style="text-align:center;">${i+1}</td><td>${d.epp_nombre}</td><td style="text-align:center;">${d.cantidad}</td><td>${EPPS.find(x=>x.id===d.epp_id)?.unidad||'unidad'}</td></tr>`).join('')}</tbody>
+  </table>
+  ${obs?`<div class="obs">📝 <strong>Observaciones:</strong> ${obs}</div>`:''}
+  <p style="font-size:12px;margin-bottom:16px;">Declaro haber recibido los EPP detallados en conformidad y me comprometo a utilizarlos según las instrucciones de seguridad vigentes.</p>
+  <div class="sig-wrap">
+    <div>
+      <div class="sig-label">Firma del Trabajador</div>
+      <div class="sig-box">${firmaWorker?`<img src="${firmaWorker}" style="height:100%;width:100%;object-fit:contain;">`:''}</div>
+      <div class="sig-name">Nombre: ${tr?.nombre} ${tr?.apellido||''}</div>
+    </div>
+    <div>
+      <div class="sig-label">Firma Supervisor Aprobador</div>
+      <div class="sig-box">${firmaSup?`<img src="${firmaSup}" style="height:100%;width:100%;object-fit:contain;">`:''}</div>
+      <div class="sig-name">Nombre: ${PERFIL?.nombre||'—'}</div>
+    </div>
+  </div>
+  <div class="footer">EPP Control · ID: ${entregaId} · ${fecha.toLocaleString('es-CL')}</div>
+  <div class="no-print" style="text-align:center;margin-top:18px;">
+    <button onclick="window.print()" style="background:#F0B429;border:none;padding:10px 22px;font-size:14px;font-weight:700;border-radius:6px;cursor:pointer;">🖨 Imprimir</button>
+  </div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
+  </body></html>`;
+
+  // Abrir para imprimir
+  const w=window.open('','_blank','width=820,height=720');
+  if(w){w.document.write(html);w.document.close();}
+
+  // Guardar en Supabase Storage como HTML
+  try{
+    const blob=new Blob([html],{type:'text/html'});
+    const path=`comprobantes/${entregaId}.html`;
+    const{error}=await SB.storage.from('formularios').upload(path,blob,{upsert:true,contentType:'text/html'});
+    if(!error){
+      const{data:u}=SB.storage.from('formularios').getPublicUrl(path);
+      await SB.from('entregas').update({formulario_url:u.publicUrl}).eq('id',entregaId);
+    }
+  }catch{}
 }
 
 async function rechazarSolicitud(solId){
@@ -1175,10 +1317,8 @@ async function rechazarSolicitud(solId){
   if(!motivo){toast('Ingresa el motivo del rechazo','err');return;}
   const obs=document.getElementById('solObs')?.value.trim();
   await SB.from('solicitudes').update({estado:'rechazada',fecha_resolucion:new Date().toISOString(),resuelto_por:YO?.id,motivo_rechazo:motivo,observaciones_supervisor:obs||null}).eq('id',solId);
-  toast('Solicitud rechazada','warn');
-  closeM('moSol');
-  cargarSolPendientes();
-  actualizarBadgeSolicitudes();
+  toast('Solicitud rechazada','warn');closeM('moSol');SIG_SUP=null;
+  cargarSolPendientes();actualizarBadgeSolicitudes();
 }
 
 // ════════════════════════════════════════════════════════
