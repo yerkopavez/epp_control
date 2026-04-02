@@ -1258,18 +1258,24 @@ async function generarComprobanteAprobacion(entregaId,tr,dets,firmaWorker,firmaS
 
     // ── Info trabajador ──
     let y=38;
-    doc.setFillColor(245,245,245);doc.rect(M,y,W-M*2,18,'F');
-    doc.setFontSize(8);doc.setTextColor(120,120,120);doc.setFont('helvetica','normal');
-    doc.text('TRABAJADOR',M+3,y+5);doc.text('RUT',M+90,y+5);
+    doc.setFillColor(245,245,245);doc.rect(M,y,W-M*2,22,'F');
+    // Fila 1: etiquetas
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text('TRABAJADOR',M+3,y+5);
+    doc.text('RUT',M+95,y+5);
+    // Fila 1: valores
     doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(0,0,0);
     doc.text(`${tr?.nombre||''} ${tr?.apellido||''}`,M+3,y+11);
-    doc.text(tr?.rut||'—',M+90,y+11);
-    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
-    doc.text('CARGO',M+3,y+16);doc.text('FECHA Y HORA',M+90,y+16);
+    doc.text(tr?.rut||'—',M+95,y+11);
+    // Fila 2: etiquetas
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text('CARGO',M+3,y+17);
+    doc.text('FECHA Y HORA',M+95,y+17);
+    // Fila 2: valores
     doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);
-    // cargo en línea siguiente dentro del recuadro
-    doc.setFontSize(8);doc.setTextColor(120,120,120);
-    y+=20;
+    doc.text(tr?.cargo||'—',M+3,y+22);
+    doc.text(`${fecha.toLocaleDateString('es-CL')} ${fecha.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'})}`,M+95,y+22);
+    y+=26;
 
     // ── Tabla EPP ──
     doc.setFillColor(240,180,41);doc.rect(M,y,W-M*2,7,'F');
